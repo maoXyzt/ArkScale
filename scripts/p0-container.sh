@@ -13,5 +13,6 @@ export GOMAXPROCS="${GOMAXPROCS:-1}"
 
 "$ARKSCALE_ROOT/scripts/fetch-deps.sh"
 "$ARKSCALE_ROOT/scripts/build-go-toolchain.sh"
+"$ARKSCALE_ROOT/scripts/audit-openharmony-platform.sh"
 "$ARKSCALE_ROOT/scripts/build-engine.sh"
 "$ARKSCALE_ROOT/scripts/verify-engine.sh"

@@ -88,6 +88,8 @@
   - 停止握手与可复制诊断版已用当前 fnm pnpm 完成 signed HAP 构建，`verify:hap` 通过；真机最终显示 `STOPPED dupOwnership=PASS sameProcess=PASS`。
   - P2 最后一个探针使用系统 `connection.createNetConnection()` 监听默认网络 bearer；UI 新增可复制的 `Network` 行，仅在 Wi-Fi 与蜂窝之间变化时显示 `SWITCH PASS`。
   - 新增 normal/system-grant 的 `GET_NETWORK_INFO` 权限及 HAP 门禁；真机完成 Wi-Fi → 蜂窝 → Wi-Fi 双向切换，显示 `SWITCH PASS CELLULAR->WIFI ... switches=2`，P2 完成。
+  - P3 开始从真实 engine 入口审计固定 Tailscale v1.82.5；首批范围为 `netns`、`netmon`、`router` 的 build tags 与 factory 调用链。
+  - 当前会话普通和受控权限均不能读取 Rancher Desktop daemon；P3 改为先生成可重放补丁与容器内 build-tag 审计脚本，容器实跑留给用户终端。
   - Hvigor 提示 entry module SemVer 警告，但 `0.1.0` 合法且当前不发布 ohpm 模块；不为无关发布路径扩展配置。
 - 创建/修改的文件：
   - `.gitignore`
@@ -193,3 +195,13 @@
 | 目标是什么？ | API 22+ ArkScale 最小客户端 |
 | 我学到了什么？ | 见 `findings.md` |
 | 我做了什么？ | 见上方记录 |
+- P3 平台隔离审计已确认首批错误选择点：netns、netmon、router、magicsock 与 tstun。下一步产出一份 pinned Tailscale 可重放补丁，并将选中文件审计接入 P0 容器流水线。
+- P3 隔离实现选型已收敛为调整 build constraint 并复用 Tailscale 现有 portable/default 文件；不新增一套平台实现。
+- 错误记录：首次 `git apply --check` 报补丁第 68 行损坏；原因是手写 hunk 的行数与 `netns_default.go` 实际长度不一致。修正补丁 hunk 后再验证，不重复原命令。
+- 已新增并成功应用 `0001-openharmony-platform-seams.patch`；连续运行两次 `fetch-deps.sh` 分别得到 `patch applied` 与 `patch already applied`，幂等性通过。
+- 已新增 `audit-openharmony-platform.sh` 并接入 `p0-container.sh`；shell 语法检查通过。真实 `GOOS=openharmony` 文件选择仍需在 Linux 容器的下一次 `pnpm run build:p0` 中验证。
+- 错误记录：尝试用 macOS 主机标准 Go 以 `GOOS=linux -tags=openharmony` 静态模拟选文件失败，主机 PATH 中没有 `go`（exit 127）。不安装额外 Go，也不重复；以已接入的 Linux 容器审计为准。
+- P3 平台隔离节点的 shell 语法、根仓库/第三方补丁 whitespace、已应用补丁反向校验均通过；等待 Linux 容器完成真实选文件与 engine 重编译门禁。
+- 错误记录：阶段提交前的 `git diff --cached --check` 将统一补丁文件中的 context 空行判为 trailing whitespace。改用等价的 zero-context (`--unified=0`) 补丁格式，既保持 `git apply` 可重放，也让仓库 whitespace 门禁有效。
+- 错误记录：zero-context 补丁首次反向校验未带 `git apply --unidiff-zero`，Git 按默认安全策略拒绝无 context hunk。补丁应用与反向检查统一增加该明确选项。
+- zero-context 补丁的反向检查、`fetch-deps.sh` 已应用识别、完整 staged whitespace 门禁均已通过；本地签名配置保持未暂存。

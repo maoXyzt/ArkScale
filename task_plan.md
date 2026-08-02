@@ -99,6 +99,8 @@
 | CommonEvent `parameters` 触发 ArkTS `no-any-unknown` | 1 | 改用显式 string 类型的 `data` 字段传递 `status|pid`，不关闭严格检查 |
 | VPN Extension 点击后因读取 `null.code` 闪退 | 1 | CommonEvent 成功回调的 error 实际为 null；所有回调改为可选链，并由独立 VPN 进程随事件上报其 Native 状态 |
 | Stop 只上报 `ON_DESTROY`，未出现 `dupOwnership=PASS` | 1 | 不再从 UI 直接销毁 Extension；先跨进程请求 Extension 完成 TUN 销毁与 fd 所有权校验，收到 `STOPPED` 后再停止 Extension |
+| P3 首次读取假设 engine 入口为 `engine/arkscale_engine.go` | 1 | 使用 `rg --files engine` 定位真实入口 `engine/cmd/arkscale/main.go`，后续从该入口追踪 |
+| P3 自动读取 Docker daemon 被沙箱拒绝 | 2 | 不绕过；先用固定 SIG Go/Tailscale 源码完成静态审计，并提供容器内 `go list` 回归脚本给用户终端执行 |
 
 ## 备注
 - 外部资料只写入 `findings.md`。

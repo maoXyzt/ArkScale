@@ -1,0 +1,158 @@
+diff --git a/net/netmon/interfaces_defaultrouteif_todo.go b/net/netmon/interfaces_defaultrouteif_todo.go
+index df0820f..302afc8 100644
+--- a/net/netmon/interfaces_defaultrouteif_todo.go
++++ b/net/netmon/interfaces_defaultrouteif_todo.go
+@@ -4 +4 @@
+-//go:build !linux && !windows && !darwin && !freebsd && !android
++//go:build (!linux && !windows && !darwin && !freebsd && !android) || openharmony
+diff --git a/net/netmon/interfaces_linux.go b/net/netmon/interfaces_linux.go
+index d0fb15a..e88ce01 100644
+--- a/net/netmon/interfaces_linux.go
++++ b/net/netmon/interfaces_linux.go
+@@ -4 +4 @@
+-//go:build !android
++//go:build !android && !openharmony
+diff --git a/net/netmon/netmon_linux.go b/net/netmon/netmon_linux.go
+index dd23dd3..b95f6e2 100644
+--- a/net/netmon/netmon_linux.go
++++ b/net/netmon/netmon_linux.go
+@@ -4 +4 @@
+-//go:build !android
++//go:build !android && !openharmony
+diff --git a/net/netmon/netmon_polling.go b/net/netmon/netmon_polling.go
+index 3d6f947..ec1d04f 100644
+--- a/net/netmon/netmon_polling.go
++++ b/net/netmon/netmon_polling.go
+@@ -4 +4 @@
+-//go:build (!linux && !freebsd && !windows && !darwin) || android
++//go:build (!linux && !freebsd && !windows && !darwin) || android || openharmony
+diff --git a/net/netns/netns_default.go b/net/netns/netns_default.go
+index 94f24d8..63a2cfd 100644
+--- a/net/netns/netns_default.go
++++ b/net/netns/netns_default.go
+@@ -4 +4 @@
+-//go:build !linux && !windows && !darwin
++//go:build (!linux && !windows && !darwin) || openharmony
+@@ -22,0 +23,3 @@ func controlC(network, address string, c syscall.RawConn) error {
++
++// UseSocketMark reports whether Linux SO_MARK routing is available.
++func UseSocketMark() bool { return false }
+diff --git a/net/netns/netns_linux.go b/net/netns/netns_linux.go
+index aaf6dab..fd1a91a 100644
+--- a/net/netns/netns_linux.go
++++ b/net/netns/netns_linux.go
+@@ -4 +4 @@
+-//go:build linux && !android
++//go:build linux && !android && !openharmony
+diff --git a/net/tstun/linkattrs_linux.go b/net/tstun/linkattrs_linux.go
+index 681e792..21ec240 100644
+--- a/net/tstun/linkattrs_linux.go
++++ b/net/tstun/linkattrs_linux.go
+@@ -3,0 +4,2 @@
++//go:build linux && !openharmony
++
+diff --git a/net/tstun/linkattrs_notlinux.go b/net/tstun/linkattrs_notlinux.go
+index 7a7b40f..eb086b3 100644
+--- a/net/tstun/linkattrs_notlinux.go
++++ b/net/tstun/linkattrs_notlinux.go
+@@ -4 +4 @@
+-//go:build !linux
++//go:build !linux || openharmony
+diff --git a/net/tstun/tun_linux.go b/net/tstun/tun_linux.go
+index 9600ceb..5b87c05 100644
+--- a/net/tstun/tun_linux.go
++++ b/net/tstun/tun_linux.go
+@@ -3,0 +4,2 @@
++//go:build linux && !openharmony
++
+diff --git a/net/tstun/wrap_linux.go b/net/tstun/wrap_linux.go
+index 136ddfe..2cde69b 100644
+--- a/net/tstun/wrap_linux.go
++++ b/net/tstun/wrap_linux.go
+@@ -3,0 +4,2 @@
++//go:build linux && !openharmony
++
+diff --git a/net/tstun/wrap_noop.go b/net/tstun/wrap_noop.go
+index c743072..68b6a30 100644
+--- a/net/tstun/wrap_noop.go
++++ b/net/tstun/wrap_noop.go
+@@ -4 +4 @@
+-//go:build !linux
++//go:build !linux || openharmony
+diff --git a/wgengine/magicsock/batching_conn_default.go b/wgengine/magicsock/batching_conn_default.go
+index 519cf80..cf4a564 100644
+--- a/wgengine/magicsock/batching_conn_default.go
++++ b/wgengine/magicsock/batching_conn_default.go
+@@ -4 +4 @@
+-//go:build !linux
++//go:build !linux || openharmony
+diff --git a/wgengine/magicsock/batching_conn_linux.go b/wgengine/magicsock/batching_conn_linux.go
+index 25bf974..e9c67ef 100644
+--- a/wgengine/magicsock/batching_conn_linux.go
++++ b/wgengine/magicsock/batching_conn_linux.go
+@@ -3,0 +4,2 @@
++//go:build linux && !openharmony
++
+diff --git a/wgengine/magicsock/magicsock_default.go b/wgengine/magicsock/magicsock_default.go
+index 7614c64..1bacdd1 100644
+--- a/wgengine/magicsock/magicsock_default.go
++++ b/wgengine/magicsock/magicsock_default.go
+@@ -4 +4 @@
+-//go:build !linux
++//go:build !linux || openharmony
+diff --git a/wgengine/magicsock/magicsock_linux.go b/wgengine/magicsock/magicsock_linux.go
+index c5df555..48ee18d 100644
+--- a/wgengine/magicsock/magicsock_linux.go
++++ b/wgengine/magicsock/magicsock_linux.go
+@@ -3,0 +4,2 @@
++//go:build linux && !openharmony
++
+diff --git a/wgengine/magicsock/peermtu.go b/wgengine/magicsock/peermtu.go
+index b675bf4..a6cceb1 100644
+--- a/wgengine/magicsock/peermtu.go
++++ b/wgengine/magicsock/peermtu.go
+@@ -4 +4 @@
+-//go:build (darwin && !ios) || (linux && !android)
++//go:build (darwin && !ios) || (linux && !android && !openharmony)
+diff --git a/wgengine/magicsock/peermtu_linux.go b/wgengine/magicsock/peermtu_linux.go
+index b76f30f..c3eb770 100644
+--- a/wgengine/magicsock/peermtu_linux.go
++++ b/wgengine/magicsock/peermtu_linux.go
+@@ -4 +4 @@
+-//go:build linux && !android
++//go:build linux && !android && !openharmony
+diff --git a/wgengine/magicsock/peermtu_stubs.go b/wgengine/magicsock/peermtu_stubs.go
+index e4f8038..feb3c8a 100644
+--- a/wgengine/magicsock/peermtu_stubs.go
++++ b/wgengine/magicsock/peermtu_stubs.go
+@@ -4 +4 @@
+-//go:build (!linux && !darwin) || android || ios
++//go:build (!linux && !darwin) || android || ios || openharmony
+diff --git a/wgengine/magicsock/peermtu_unix.go b/wgengine/magicsock/peermtu_unix.go
+index eec3d74..8fa1b16 100644
+--- a/wgengine/magicsock/peermtu_unix.go
++++ b/wgengine/magicsock/peermtu_unix.go
+@@ -4 +4 @@
+-//go:build (darwin && !ios) || (linux && !android)
++//go:build (darwin && !ios) || (linux && !android && !openharmony)
+diff --git a/wgengine/router/router_default.go b/wgengine/router/router_default.go
+index 1e675d1..3c31110 100644
+--- a/wgengine/router/router_default.go
++++ b/wgengine/router/router_default.go
+@@ -4 +4 @@
+-//go:build !windows && !linux && !darwin && !openbsd && !freebsd
++//go:build (!windows && !linux && !darwin && !openbsd && !freebsd) || openharmony
+diff --git a/wgengine/router/router_linux.go b/wgengine/router/router_linux.go
+index 80191b2..77ed0f8 100644
+--- a/wgengine/router/router_linux.go
++++ b/wgengine/router/router_linux.go
+@@ -3,0 +4,2 @@
++//go:build linux && !openharmony
++
+diff --git a/wgengine/router/runner.go b/wgengine/router/runner.go
+index 8fa068e..b5459c0 100644
+--- a/wgengine/router/runner.go
++++ b/wgengine/router/runner.go
+@@ -4 +4 @@
+-//go:build linux
++//go:build linux && !openharmony

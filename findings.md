@@ -117,3 +117,34 @@
 - API 22 本地 SDK 的 `connection.createNetConnection()` 支持默认网络 `netCapabilitiesChange` 监听，所需 `GET_NETWORK_INFO` 是 normal/system-grant 权限；OpenHarmony 官方网络重连实践也以该事件识别 Wi-Fi/蜂窝默认网络变化：https://gitee.com/openharmony/communication_netmanager_base/wikis/pages/export?doc_id=3234573&type=pdf
 - P2 只记录 Wi-Fi 与蜂窝 bearer 的实际变化，忽略 VPN/其他 bearer，避免 TUN 创建后把 VPN 自身误报为网络切换。
 - Mate X7 真机完成 Wi-Fi → 蜂窝 → Wi-Fi 双向切换，最终显示 `SWITCH PASS CELLULAR->WIFI ... switches=2`；VPN 进程 PID、protect 和 TUN dup 状态全程保持 PASS，P2 完成。
+
+## P3 Linux 平台路径审计（2026-08-03）
+
+- 实际 engine 入口是 `engine/cmd/arkscale/main.go`；`engine/arkscale_engine.go` 不存在。
+- P0 的 `go.mod` 已引入完整 `tailscale.com` 闭包，因此 Linux netlink/iptables 等模块出现在依赖或产物中不等于运行时会执行。P3 审计必须从 engine 入口追到构造点，并同时检查 build-tag 选择结果和运行时 factory。
+- 固定 Tailscale checkout 中待审计的首要平台目录是 `net/netns`、`net/netmon` 与 `wgengine/router`；SIG Go 的 `GOOS=openharmony` 兼容行为可能额外启用 `linux` build tag。
+- SIG Go 源码确认 `go/build.matchTag` 在 `GOOS=openharmony` 时把 `linux` 判为匹配，因而 `*_linux.go` 与 `//go:build linux` 会被选入；其 `internal/goos.GOOS` 还被生成成字符串 `"linux"`。所以运行时 `runtime.GOOS == "linux"` 分支也会进入 Linux 路径。
+- 当前 engine 仅 blank-import `ipnlocal` 与 `wgengine`，P0 编译没有构造 backend/router/netmon；Linux 符号存在不能证明已执行。P3 接入构造函数前必须先隔离 factory。
+- `net/netns/netns_linux.go` 会在 dial/listen control 中尝试 `SO_MARK` 或 `SO_BINDTODEVICE`；OpenHarmony 已由 `protectProcessNet()` 提供进程级绕行，应改选 no-op control。
+- `net/netmon/netmon_linux.go` 与 `interfaces_linux.go` 会使用 rtnetlink、`/proc/net/route` 和 Linux syscall；OpenHarmony 应改用 polling monitor，并由 ArkTS 网络事件主动触发重绑。
+- `wgengine/router/router_linux.go` 会构造 Linux router 并探测 policy routing/netfilter；OpenHarmony 必须改用只上报 `router.Config` 的平台 router，不能触碰系统 iptables/netlink。
+- Tailscale 已有 `router.CallbackRouter`，它同时实现 `router.Router` 和 `dns.OSConfigurator`，正是把路由/DNS 配置上送平台的现成 seam；ArkScale 应直接构造它，不新增 router abstraction，也不调用 `router.New`。
+- 排除 `netns_linux.go` 后仍需 OpenHarmony 文件提供 `UseSocketMark() == false`，因为被 SIG Go 选中的 `magicsock_linux.go` 会引用该符号；返回 false 也会让 opt-in raw-disco 路径在创建 AF_PACKET 前安全退出。
+- `netmon` 已有 `newPollingMon` 和通用 polling 实现；最小补丁应让 OpenHarmony 选择它，并排除 `netmon_linux.go`/`interfaces_linux.go`，而不是复制 monitor 主体。
+- `netmon.Monitor` 已公开 `InjectEvent()`：非 static monitor 会重新采集接口状态并触发 backend/engine 的既有 change callbacks。ArkScale 的 `arkscale_network_changed()` 可直接调用它，不需要自建 Go 事件总线。
+- `wgengine.Config` 允许显式传入 `Tun`、`Router`、`DNS`、`NetMon` 与 `Dialer`。只要 ArkScale 全部提供，`NewUserspaceEngine` 不会调用默认 Linux router/DNS factory；`CallbackRouter` 可同时填充 Router 与 DNS。
+- `ipnlocal.NewLocalBackend` 从 `tsd.System` 取得 engine、state store、dialer、MagicSock 和 NetMon；P3 后续应仿照 `tailscaled` 的最小组装顺序，但不复用其 `tryEngine`，因为后者会直接调用 `tstun.New`、`router.New` 和 OS DNS factory。
+- 审计扩展发现 `magicsock`、`tstun`、`routetable`、`ktimeout`、DNS manager、LocalBackend SSH/autoupdate 等也会因 `linux` tag 或 `runtime.GOOS == "linux"` 进入 Linux 路径。首个补丁先隔离启动主链必经的 netns/netmon/router；其余命中必须在 backend 真正调用前逐项标记“采用/排除/替换”。
+- `magicsock` 已有 `magicsock_default.go`、`batching_conn_default.go` 与 `peermtu_stubs.go`；OpenHarmony 可复用这些 portable stubs，避免 AF_PACKET/BPF、Linux UDP batching 与 peer-MTU sockopt。
+- `fetch-deps.sh` 在 checkout 已处于固定 commit 时允许工作树有可重放 patch；可新增幂等 `git apply --check`/反向检查，而不重置或覆盖用户数据。
+- OpenHarmony-SIG Go 会令 Tailscale 看到 `runtime.GOOS == "linux"`；因此不能依赖 `version.IsMobile()`，它只识别 Android/iOS。需要用 `openharmony` 构建标签建立平台边界，路由收敛则由 ArkScale 显式选择 `router.ConsolidatingRoutes`（如后续确有需要）。
+- `wgengine.NewUserspaceEngine` 即使收到外部 `tun.Device` 也会调用 `tstun.Wrap`。OpenHarmony 必须选择便携的 `wrap_noop.go`，避免 Linux GRO/GSO 探测。
+- ArkScale 不能调用 `tstun.New`：它会进入 wireguard-go 的系统 TUN 创建和 Linux 诊断路径。P3 应以 Harmony VPN 提供并复制后的 TUN fd 实现一个最小 `tun.Device` 适配器。
+- `tun.Device` 的最小方法面可从 Tailscale 的 `fakeTUN` 看出：`File`、`Close`、`Read`、`Write`、`Flush`、`MTU`、`Name`、`Events`、`BatchSize`；正式实现前仍需对照当前 pinned wireguard-go 接口确认。
+- 当前 C ABI 已包含 `arkscale_engine_set_tun` 与 `arkscale_engine_network_changed`，足以承载后续外部 TUN fd 注入和 `netmon.Monitor.InjectEvent()`，无需扩展 ABI 才能开始平台隔离。
+- pinned Tailscale 的 Linux 专用文件有一部分仅靠 `_linux.go` 文件名选择、没有显式 build tag（`router_linux.go`、`magicsock_linux.go`、`batching_conn_linux.go`、`tstun/linkattrs_linux.go`、`tstun/wrap_linux.go`、`tstun/tun_linux.go`）。OpenHarmony-SIG Go 会选中它们，必须同时修改 Linux 文件与对应 portable 文件的 build constraint。
+- 可直接复用的 portable 实现已存在：`magicsock_default.go`、`batching_conn_default.go`、`peermtu_stubs.go`、`tstun/linkattrs_notlinux.go`、`tstun/wrap_noop.go`。平台补丁只需调整选择条件，不应复制实现。
+- OpenHarmony 的 `netns` 需要一个极小专用文件：复用 default no-op control，并补齐 Linux 调用方所需的 `UseSocketMark() false`。这与 VPN 扩展已调用 `protectProcessNet()` 的职责边界一致。
+- 平台隔离补丁必须可重放且幂等；`fetch-deps.sh` 在确认 pinned commit 后用 `git apply --check` / `git apply --reverse --check` 应用。容器构建应在编译前运行 `go list` 审计实际选中的平台文件。
+- `build-engine.sh` 已集中定义 OpenHarmony 的 Go/CGO/CC/CXX/AR 环境；平台文件审计应复用相同的 `GOOS=openharmony GOARCH=arm64` 与 pinned SIG Go，不另造工具链入口。
+- `router_default.go` 已提供安全的 unsupported-OS 错误与空清理实现。让 OpenHarmony 选择它即可使意外调用 `router.New` 明确失败；正常引擎路径应显式注入 `router.CallbackRouter`。

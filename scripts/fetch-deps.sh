@@ -44,6 +44,22 @@ fetch_pinned() {
   echo "$ARKSCALE_DEP_NAME: $ARKSCALE_ACTUAL_COMMIT"
 }
 
+apply_dependency_patch() {
+  ARKSCALE_DEP_NAME=$1
+  ARKSCALE_DEP_DIR=$2
+  ARKSCALE_PATCH=$3
+
+  if git -C "$ARKSCALE_DEP_DIR" apply --unidiff-zero --reverse --check "$ARKSCALE_PATCH" >/dev/null 2>&1; then
+    echo "$ARKSCALE_DEP_NAME patch already applied: $(basename "$ARKSCALE_PATCH")"
+  elif git -C "$ARKSCALE_DEP_DIR" apply --unidiff-zero --check "$ARKSCALE_PATCH"; then
+    git -C "$ARKSCALE_DEP_DIR" apply --unidiff-zero "$ARKSCALE_PATCH"
+    echo "$ARKSCALE_DEP_NAME patch applied: $(basename "$ARKSCALE_PATCH")"
+  else
+    echo "error: cannot apply $ARKSCALE_PATCH cleanly" >&2
+    exit 1
+  fi
+}
+
 mkdir -p "$ARKSCALE_ROOT/third_party"
 fetch_pinned \
   "OpenHarmony-SIG Go" \
@@ -56,3 +72,7 @@ fetch_pinned \
   "$ARKSCALE_TAILSCALE_COMMIT" \
   "$ARKSCALE_ROOT/third_party/tailscale" \
   "v1.82.5"
+apply_dependency_patch \
+  "Tailscale" \
+  "$ARKSCALE_ROOT/third_party/tailscale" \
+  "$ARKSCALE_ROOT/patches/tailscale/0001-openharmony-platform-seams.patch"
