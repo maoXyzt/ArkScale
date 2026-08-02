@@ -2,7 +2,7 @@
 
 ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自用的 Tailscale 全设备 VPN 客户端。
 
-> 当前仓库已完成 P0：固定 Tailscale 依赖闭包已生成并校验 AArch64 engine。P1 最小 Go `c-shared` HAP 已通过真机加载和 100 次启停，仍待 30 分钟真机稳定性门禁；这还不是可用的 Tailscale 客户端。
+> 当前仓库已完成 P0 和 P1：固定 Tailscale 依赖闭包已生成并校验 AArch64 engine，最小 Go `c-shared` HAP 已通过真机加载、100 次启停和 30 分钟持续运行；这还不是可用的 Tailscale 客户端。
 
 ## 当前判断
 
@@ -65,7 +65,7 @@ ARKSCALE_LINUX_SDK="$HOME/harmony-linux/command-line-tools/sdk/default/openharmo
   pnpm run build:p1
 ```
 
-P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测试。真机上的首次加载和 100 次启停已经通过；30 分钟稳定性验证尚未完成。
+P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测试。真机上的首次加载、100 次启停和 30 分钟稳定性验证均已通过。
 
 首次真机验证需在 DevEco Studio 的 Signing Configs 中配置调试签名，选择已连接设备并运行 `entry`。页面显示 `Go smoke: PASS` 才算通过首次加载；签名文件和凭据不得提交到仓库。
 

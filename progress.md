@@ -70,6 +70,8 @@
   - 创建 `dev` 分支所需的 Git 元数据写入被沙箱拒绝；等待用户执行一次 `git switch -c dev` 后继续阶段提交。
   - 用户已在本机创建并切换到 `dev`；开始按文档基线、P0 构建链、P1 真机探针记录三个阶段提交。
   - `dev` 已形成三个阶段节点：API 22 文档门禁、可复现 P0 engine 工具链、P1 HarmonyOS Go runtime 探针；工作树提交范围不含签名材料和生成产物。
+  - DevEco 恢复本机签名材料后，产品未关联 `signingConfig`，首次部署报 `9568320: no signature file`；本机补回 `signingConfig: default` 后生成 signed HAP，签名字段保持未提交。
+  - 用户确认目标真机显示 `30 min soak: PASS (30m 0s)`；保持亮屏、墙上时间和 Go tick 数联合门禁通过，P1 完成并进入 P2。
   - Hvigor 提示 entry module SemVer 警告，但 `0.1.0` 合法且当前不发布 ohpm 模块；不为无关发布路径扩展配置。
 - 创建/修改的文件：
   - `.gitignore`
@@ -118,6 +120,7 @@
 | P1 100 次生命周期真机 | 设备 `5NC0226529000198` | 100 对 start/stop 全部通过 | 用户确认页面 PASS | pass |
 | P1 30 分钟门禁静态构建 | 定时 UI / start-stop N-API / 现有 smoke `.so` | ArkTS/C++/HAP 链路通过 | 签名 HAP 构建及校验通过；待重建 Go `.so` 后真机 | pass |
 | P1 防熄屏与 tick 门禁静态检查 | Window API / C ABI / Node-API / shell scripts | API 22+ 可编译且符号一致 | SDK 接口确认；C/C++/shell 静态检查通过 | pass |
+| P1 30 分钟真机持续运行 | 设备 `5NC0226529000198` / 保持前台亮屏 | 30 分钟且 Go tick 门槛通过 | 用户确认 `PASS (30m 0s)` | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -153,18 +156,17 @@
 
 ## 当前诊断门禁
 - P0 已完成；实现不含 Tailscale 的最小 Go c-shared library，并接入现有 Node-API/HAP。
-- P1 本地构建门禁已完成，下一步在目标真机运行 smoke 并完成 100 次启停与 30 分钟验证。
-- P1 下一步重建 smoke HAP，在同一真机保持页面运行 30 分钟并确认 soak PASS。
-- 当前分支为 `dev`；阶段提交完成后继续 P1 30 分钟真机门禁。
+- P0/P1 已完成；当前进入 P2 VPN/TUN/process-protect PoC。
+- P2 先实现最小 `VpnExtensionAbility`，在 Go 启动前调用 `protectProcessNet()`，再验证 TUN FD 所有权与网络切换。
 
 ## 当前外部输入
-- P1 30 分钟 soak 真机结果。
+- P2 真机 VPN 授权、TUN FD 和 process-protect 结果。
 
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 P1：最小 Go c-shared HAP |
-| 我要去哪里？ | P1 构建与真机门禁，然后 P2 TUN/protect PoC |
+| 我在哪里？ | 阶段 P2：VPN/TUN/process-protect PoC |
+| 我要去哪里？ | 先完成 TUN/protect PoC，再进入 P3 Tailscale backend |
 | 目标是什么？ | API 22+ ArkScale 最小客户端 |
 | 我学到了什么？ | 见 `findings.md` |
 | 我做了什么？ | 见上方记录 |

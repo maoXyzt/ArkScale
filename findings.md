@@ -75,6 +75,7 @@
 - 30 分钟 UI 和 N-API 已在本地签名 HAP 中编译通过；由于宿主不能执行 Linux SIG Go，必须由 `build:p1` 重新生成 smoke `.so`，不能把仅重跑 `build:hap` 当作 Go ticker 已更新。
 - SDK API 24 的 `Window.setWindowKeepScreenOn()` 自 API 11 起可用，适合 P1 前台 soak；旧的 `@system.brightness.setKeepScreenOn()` 已废弃，不采用。
 - 熄屏或进入后台可能挂起普通前台应用和 ArkTS timer。P1 不能只用 `Date.now()` 判定：测试期间保持主窗口亮屏，并要求 Go worker 的 100 ms ticker 至少累计 17000 次，才能把连续运行与墙上经过时间同时纳入 PASS。
+- 目标真机最终显示 `30 min soak: PASS (30m 0s)`，证明该设备上 SIG Go c-shared worker 在保持前台亮屏时通过 30 分钟墙上时间与 Go tick 联合门禁；P1 已完成。
 
 ## 技术决策
 | 决策 | 理由 |

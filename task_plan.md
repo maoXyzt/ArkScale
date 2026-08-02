@@ -4,7 +4,7 @@
 按已确认的门禁顺序完成可复现的 Tailscale/OpenHarmony 编译、Go c-shared 真机、VPN/TUN、Tailscale backend 和端到端验证。
 
 ## 当前阶段
-阶段 P1（in_progress：最小 Go c-shared HAP）
+阶段 P2（in_progress：VPN/TUN/process-protect PoC）
 
 ## 各阶段
 
@@ -30,14 +30,14 @@
 - [x] 构建并校验含 Go smoke library 的 HAP
 - [x] 使用调试签名在真机完成首次加载
 - [x] 真机执行 100 次 Go worker 启停
-- [ ] 完成 30 分钟真机持续运行验证
-- **状态：** in_progress
+- [x] 完成 30 分钟真机持续运行验证
+- **状态：** completed
 
 ### 阶段 P2：VPN/TUN/process-protect PoC
 - [ ] 实现 `VpnExtensionAbility`
 - [ ] 在 Go 启动前调用 `protectProcessNet()`
 - [ ] 验证 TUN FD、`dup()` 所有权、同进程和网络切换
-- **状态：** pending
+- **状态：** in_progress
 
 ### 阶段 P3：Tailscale backend
 - [ ] 审计并隔离错误选择的 Linux 平台实现
