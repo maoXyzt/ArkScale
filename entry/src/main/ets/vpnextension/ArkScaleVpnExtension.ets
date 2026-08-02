@@ -1,5 +1,5 @@
 import { BusinessError, commonEventManager } from '@kit.BasicServicesKit';
-import { VpnExtensionAbility, vpnExtension } from '@kit.NetworkKit';
+import { connection, VpnExtensionAbility, vpnExtension } from '@kit.NetworkKit';
 import bridge from 'libarkscale_bridge.so';
 
 const VPN_PROBE_EVENT = 'com.arkscale.client.VPN_PROBE_STATUS';
@@ -8,6 +8,10 @@ const VPN_PROBE_COMMAND_EVENT = 'com.arkscale.client.VPN_PROBE_COMMAND';
 export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   private connection?: vpnExtension.VpnConnection;
   private commandSubscriber?: commonEventManager.CommonEventSubscriber;
+  private networkMonitor?: connection.NetConnection;
+  private networkMonitoring: boolean = false;
+  private networkBearer: string = 'UNKNOWN';
+  private networkSwitches: number = 0;
   private stopping: boolean = false;
   private stopCompleted: boolean = false;
 
@@ -59,6 +63,7 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
       await this.connection.protectProcessNet();
       bridge.markVpnProtected();
       this.publishStatus('PROTECTED');
+      this.startNetworkProbe();
 
       const tunFd = await this.connection.create({
         addresses: [{
@@ -93,6 +98,7 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   }
 
   private async stopProbe(): Promise<void> {
+    this.stopNetworkProbe();
     const errorCode = await this.destroyConnection();
     if (errorCode === 0) {
       bridge.stopVpnProbe();
@@ -103,6 +109,66 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
       this.stopping = false;
       this.publishStatus(`STOP FAIL code=${errorCode}`);
     }
+  }
+
+  private startNetworkProbe(): void {
+    try {
+      const defaultNet = connection.getDefaultNetSync();
+      this.networkBearer = this.physicalBearer(connection.getNetCapabilitiesSync(defaultNet).bearerTypes);
+      this.networkMonitor = connection.createNetConnection();
+      this.networkMonitoring = true;
+      this.networkMonitor.on('netCapabilitiesChange', (info: connection.NetCapabilityInfo) => {
+        if (!this.networkMonitoring) {
+          return;
+        }
+        const nextBearer = this.physicalBearer(info.netCap.bearerTypes);
+        if (nextBearer === 'UNKNOWN' || nextBearer === this.networkBearer) {
+          return;
+        }
+        if (this.networkBearer === 'UNKNOWN') {
+          this.networkBearer = nextBearer;
+          this.publishStatus(`NETWORK READY bearer=${nextBearer} netId=${info.netHandle.netId} switches=0`);
+          return;
+        }
+        const previousBearer = this.networkBearer;
+        this.networkBearer = nextBearer;
+        this.networkSwitches++;
+        this.publishStatus(`NETWORK SWITCH PASS ${previousBearer}->${nextBearer} netId=${info.netHandle.netId} switches=${this.networkSwitches}`);
+      });
+      this.networkMonitor.register((error: BusinessError) => {
+        if (error?.code) {
+          this.networkMonitoring = false;
+          this.publishStatus(`NETWORK FAIL code=${error.code}`);
+          return;
+        }
+        this.publishStatus(`NETWORK READY bearer=${this.networkBearer} netId=${defaultNet.netId} switches=0`);
+      });
+    } catch (error) {
+      this.networkMonitoring = false;
+      this.publishStatus(`NETWORK FAIL code=${(error as BusinessError).code ?? -1}`);
+    }
+  }
+
+  private stopNetworkProbe(): void {
+    this.networkMonitoring = false;
+    const monitor = this.networkMonitor;
+    this.networkMonitor = undefined;
+    if (monitor !== undefined) {
+      try {
+        monitor.unregister((error: BusinessError) => {
+          if (error?.code) {
+            console.error(`Network monitor unregister failed: ${error.code}`);
+          }
+        });
+      } catch (error) {
+        console.error(`Network monitor unregister failed: ${(error as BusinessError).code ?? -1}`);
+      }
+    }
+  }
+
+  private physicalBearer(bearerTypes: Array<connection.NetBearType>): string {
+    return bearerTypes.includes(connection.NetBearType.BEARER_WIFI) ? 'WIFI' :
+      bearerTypes.includes(connection.NetBearType.BEARER_CELLULAR) ? 'CELLULAR' : 'UNKNOWN';
   }
 
   private async destroyConnection(): Promise<number> {

@@ -86,6 +86,8 @@
   - 真机 Stop 只到 `ON_DESTROY`：UI 先销毁 Extension，导致其同步生命周期结束早于异步 `connection.destroy()` 和 native fd 校验。停止流程现改为命令事件握手，收到 `STOPPED ... dupOwnership=PASS` 后才销毁 Extension。
   - P2 状态合并成一个 ArkUI Text，并启用 `CopyOptions.LocalDevice`；真机可长按选择并复制完整诊断块。
   - 停止握手与可复制诊断版已用当前 fnm pnpm 完成 signed HAP 构建，`verify:hap` 通过；真机最终显示 `STOPPED dupOwnership=PASS sameProcess=PASS`。
+  - P2 最后一个探针使用系统 `connection.createNetConnection()` 监听默认网络 bearer；UI 新增可复制的 `Network` 行，仅在 Wi-Fi 与蜂窝之间变化时显示 `SWITCH PASS`。
+  - 新增 normal/system-grant 的 `GET_NETWORK_INFO` 权限及 HAP 门禁；当前 fnm pnpm 下 signed HAP 构建和 `verify:hap` 均通过，等待真机 Wi-Fi/蜂窝切换。
   - Hvigor 提示 entry module SemVer 警告，但 `0.1.0` 合法且当前不发布 ohpm 模块；不为无关发布路径扩展配置。
 - 创建/修改的文件：
   - `.gitignore`
@@ -139,6 +141,8 @@
 | P2 VPN 启动路径真机 | Mate X7 / Start VPN probe | 独立 VPN 进程、protect、TUN dup、native 同进程均通过 | `READY protected=PASS tunDup=PASS sameProcess=PASS` | pass |
 | P2 VPN 停止 fd 所有权真机 | Mate X7 / Stop VPN probe | 销毁原始 TUN 后复制 fd 仍有效，并显示 `dupOwnership=PASS` | `STOPPED dupOwnership=PASS sameProcess=PASS` | pass |
 | P2 两阶段停止与可复制状态本地构建 | `pnpm run build:hap && pnpm run verify:hap` | ArkTS 编译、签名打包和 HAP 校验通过 | BUILD SUCCESSFUL；HAP verification passed | pass |
+| P2 默认网络监听本地构建 | NetworkKit default network callback / GET_NETWORK_INFO | ArkTS 编译且权限进入 HAP | BUILD SUCCESSFUL；HAP verification passed | pass |
+| P2 Wi-Fi/蜂窝切换真机 | Mate X7 / VPN READY 后切换默认网络 | `Network: SWITCH PASS WIFI->CELLULAR` 或反向 | 待真机操作 | pending |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |

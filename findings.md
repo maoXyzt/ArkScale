@@ -114,3 +114,5 @@
 - 修复方向：增加 UI → VPN Extension 的停止命令事件。Extension 先销毁系统持有的原始 TUN fd，再由 native 校验复制 fd 仍有效并关闭它，发布 `STOPPED ... dupOwnership=PASS`；UI 收到该状态后才停止 Extension。
 - 修复后真机显示 `STOPPED dupOwnership=PASS sameProcess=PASS`，证明两阶段停止握手和复制 fd 所有权门禁通过。
 - 本机 API 22 SDK 明确支持 `Text.copyOption(CopyOptions.LocalDevice)`，可让一整块诊断文本长按选择并复制到设备剪贴板。
+- API 22 本地 SDK 的 `connection.createNetConnection()` 支持默认网络 `netCapabilitiesChange` 监听，所需 `GET_NETWORK_INFO` 是 normal/system-grant 权限；OpenHarmony 官方网络重连实践也以该事件识别 Wi-Fi/蜂窝默认网络变化：https://gitee.com/openharmony/communication_netmanager_base/wikis/pages/export?doc_id=3234573&type=pdf
+- P2 只记录 Wi-Fi 与蜂窝 bearer 的实际变化，忽略 VPN/其他 bearer，避免 TUN 创建后把 VPN 自身误报为网络切换。

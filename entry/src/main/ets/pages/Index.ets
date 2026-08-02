@@ -14,6 +14,7 @@ struct Index {
   @State private controlStatus: string = 'NOT REQUESTED';
   @State private extensionStatus: string = 'NO EVENT';
   @State private vpnNativeStatus: string = 'NO EVENT';
+  @State private networkStatus: string = 'NOT REGISTERED';
   private subscriber?: commonEventManager.CommonEventSubscriber;
   private stopRequested: boolean = false;
 
@@ -43,14 +44,18 @@ struct Index {
             const parts = payload.split('|');
             const status = parts[0];
             const extensionPid = Number(parts[1]);
-            this.extensionStatus = `${status} pid=${extensionPid} process=${extensionPid === this.uiPid ? 'SAME' : 'SEPARATE'}`;
             this.vpnNativeStatus = parts[2];
-            if (status === 'STOPPED' && this.stopRequested) {
-              this.stopRequested = false;
-              this.finishVpnStop();
-            } else if (status.startsWith('STOP FAIL') && this.stopRequested) {
-              this.stopRequested = false;
-              this.controlStatus = 'STOP FAILED IN EXTENSION';
+            if (status.startsWith('NETWORK ')) {
+              this.networkStatus = status.substring(8);
+            } else {
+              this.extensionStatus = `${status} pid=${extensionPid} process=${extensionPid === this.uiPid ? 'SAME' : 'SEPARATE'}`;
+              if (status === 'STOPPED' && this.stopRequested) {
+                this.stopRequested = false;
+                this.finishVpnStop();
+              } else if (status.startsWith('STOP FAIL') && this.stopRequested) {
+                this.stopRequested = false;
+                this.controlStatus = 'STOP FAILED IN EXTENSION';
+              }
             }
           }
         });
@@ -61,6 +66,7 @@ struct Index {
 
   private async startVpn(): Promise<void> {
     this.stopRequested = false;
+    this.networkStatus = 'REGISTERING';
     this.controlStatus = 'REQUESTING';
     try {
       await vpnExtension.startVpnExtensionAbility({
@@ -113,7 +119,8 @@ struct Index {
       `${this.lifecyclePassed ? '100 start/stop cycles: PASS' : '100 start/stop cycles: FAIL'}\n` +
       `Control: ${this.controlStatus}\n` +
       `Extension: ${this.extensionStatus}\n` +
-      `Native in VPN process: ${this.vpnNativeStatus}`;
+      `Native in VPN process: ${this.vpnNativeStatus}\n` +
+      `Network: ${this.networkStatus}`;
   }
 
   build() {
