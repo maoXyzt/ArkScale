@@ -36,7 +36,8 @@
 ### 阶段 P2：VPN/TUN/process-protect PoC
 - [x] 实现 `VpnExtensionAbility`
 - [x] 在 Go 启动前调用 `protectProcessNet()`
-- [ ] 验证 TUN FD、`dup()` 所有权、同进程和网络切换
+- [x] 验证 TUN FD、`dup()` 所有权和同进程
+- [ ] 验证网络切换
 - **状态：** in_progress
 
 ### 阶段 P3：Tailscale backend

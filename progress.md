@@ -85,7 +85,7 @@
   - 真机 Start 已通过 `process=SEPARATE`、`protected=PASS`、`tunDup=PASS`、`sameProcess=PASS`；P2 的启动/保护/复制路径成立。
   - 真机 Stop 只到 `ON_DESTROY`：UI 先销毁 Extension，导致其同步生命周期结束早于异步 `connection.destroy()` 和 native fd 校验。停止流程现改为命令事件握手，收到 `STOPPED ... dupOwnership=PASS` 后才销毁 Extension。
   - P2 状态合并成一个 ArkUI Text，并启用 `CopyOptions.LocalDevice`；真机可长按选择并复制完整诊断块。
-  - 停止握手与可复制诊断版已用当前 fnm pnpm 完成 signed HAP 构建，`verify:hap` 通过；最终 stop 所有权结果等待真机复验。
+  - 停止握手与可复制诊断版已用当前 fnm pnpm 完成 signed HAP 构建，`verify:hap` 通过；真机最终显示 `STOPPED dupOwnership=PASS sameProcess=PASS`。
   - Hvigor 提示 entry module SemVer 警告，但 `0.1.0` 合法且当前不发布 ohpm 模块；不为无关发布路径扩展配置。
 - 创建/修改的文件：
   - `.gitignore`
@@ -137,7 +137,7 @@
 | P1 30 分钟真机持续运行 | 设备 `5NC0226529000198` / 保持前台亮屏 | 30 分钟且 Go tick 门槛通过 | 用户确认 `PASS (30m 0s)` | pass |
 | P2 VPN 平台探针本地构建 | VPN Extension / protect / `/32` TUN / Native dup | ArkTS/C++ 无诊断且 HAP 声明完整 | signed HAP 构建成功；HAP/Clang/ShellCheck 通过 | pass |
 | P2 VPN 启动路径真机 | Mate X7 / Start VPN probe | 独立 VPN 进程、protect、TUN dup、native 同进程均通过 | `READY protected=PASS tunDup=PASS sameProcess=PASS` | pass |
-| P2 VPN 停止 fd 所有权真机 | Mate X7 / Stop VPN probe | 销毁原始 TUN 后复制 fd 仍有效，并显示 `dupOwnership=PASS` | 首次只到 `ON_DESTROY`；已改两阶段停止握手，待复验 | pending |
+| P2 VPN 停止 fd 所有权真机 | Mate X7 / Stop VPN probe | 销毁原始 TUN 后复制 fd 仍有效，并显示 `dupOwnership=PASS` | `STOPPED dupOwnership=PASS sameProcess=PASS` | pass |
 | P2 两阶段停止与可复制状态本地构建 | `pnpm run build:hap && pnpm run verify:hap` | ArkTS 编译、签名打包和 HAP 校验通过 | BUILD SUCCESSFUL；HAP verification passed | pass |
 
 ## 错误日志
