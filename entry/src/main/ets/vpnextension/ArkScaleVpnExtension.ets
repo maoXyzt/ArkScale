@@ -84,9 +84,9 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
 
   private publishStatus(status: string): void {
     commonEventManager.publish(VPN_PROBE_EVENT, {
-      data: `${status}|${bridge.getCurrentPid()}`
+      data: `${status}|${bridge.getCurrentPid()}|${bridge.getVpnProbeStatus()}`
     }, (error: BusinessError) => {
-      if (error.code) {
+      if (error?.code) {
         console.error(`VPN probe event publish failed: ${error.code}`);
       }
     });

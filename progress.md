@@ -79,6 +79,9 @@
   - P2 诊断 UI 现分别显示 control、Extension common event 和 Native 状态；Extension 每个生命周期阶段上报自身 PID，UI 同时显示 PID 比较，单次真机复验可区分启动失败、生命周期未进入、跨进程和 Native 实例隔离。
   - 首次诊断构建被 ArkTS `no-any-unknown` 拒绝，因为 CommonEvent `parameters` 类型为 `any`；改用显式 string 类型的 `data` 传递 `status|pid`，保持严格类型门禁。
   - P2 分层诊断版 signed HAP 已无警告构建，HAP 验证通过；等待真机回传 Control/Extension/Native 三行以完成根因判定。
+  - 真机堆栈确认 Extension 已进入 `onCreate` 和 `ProtectProcessNet`，系统自动使用 `com.arkscale.client:vpn` 独立进程；闪退根因是 CommonEvent 成功回调传入 null error，代码读取 `error.code`。
+  - 修复所有 CommonEvent callback 的 null error 处理；删除无意义的 UI Native 轮询，改由 VPN 进程在事件中携带其 Native 探针状态。
+  - VPN 进程闪退修复后的 signed HAP 已无 ArkTS/C++ 错误构建，HAP 与 whitespace 门禁通过；待同一真机复验。
   - Hvigor 提示 entry module SemVer 警告，但 `0.1.0` 合法且当前不发布 ohpm 模块；不为无关发布路径扩展配置。
 - 创建/修改的文件：
   - `.gitignore`

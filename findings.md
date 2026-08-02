@@ -79,6 +79,8 @@
 - 本机 API 24 SDK 类型定义再次确认：`startVpnExtensionAbility`、`VpnConnection.create/destroy` 自 API 11 可用，`protectProcessNet()` 自 API 22 可用且只保护调用后创建的当前进程 socket；P2 必须保持 protect-before-Go 的顺序。
 - `VpnConfig.addresses` 必填，`RouteInfo` 需要 interface/destination/gateway/hasGateway/isDefaultRoute；P2 使用显式、窄范围的测试网段，不能用空 routes，以免平台按地址族补成默认全隧道路由。
 - P2 首次真机 UI 只见 `IDLE sameProcess=N/A`，现有单字段轮询会覆盖 `startVpnExtensionAbility` 的结果，且 Native 全局变量不能作为跨 ArkTS runtime 的唯一诊断通道；使用应用内 common event 单向上报 Extension 阶段/PID，可同时区分未启动、API 失败和 Native 实例隔离。
+- Mate X7 真机日志证明 VPN Extension 即使 manifest 未声明额外 process，也由系统启动为 `com.arkscale.client:vpn` 独立进程。进程级保护仍有效，但 Go engine/Native bridge 必须由 Extension 在该 VPN 进程内启动；UI 需通过跨进程事件/IPC 控制，不能依赖 UI 进程的 Native 全局状态。
+- CommonEvent publish 成功时回调的 error 在该真机上为 null，尽管 SDK 类型未体现 nullable；直接读取 `error.code` 会导致 VPN 进程 TypeError 退出，必须使用空值安全访问。
 
 ## 技术决策
 | 决策 | 理由 |

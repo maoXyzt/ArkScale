@@ -96,6 +96,7 @@
 | 自动创建 `dev` 分支时 `.git/HEAD.lock` 被沙箱拒绝 | 2 | 不绕过 Git 元数据权限；等待用户在本机终端执行 `git switch -c dev` |
 | P2 真机只显示 `IDLE sameProcess=N/A` | 1 | 分离 UI 启动结果、Extension 生命周期事件和 Native 状态，并比较两侧 PID 后再判断根因 |
 | CommonEvent `parameters` 触发 ArkTS `no-any-unknown` | 1 | 改用显式 string 类型的 `data` 字段传递 `status|pid`，不关闭严格检查 |
+| VPN Extension 点击后因读取 `null.code` 闪退 | 1 | CommonEvent 成功回调的 error 实际为 null；所有回调改为可选链，并由独立 VPN 进程随事件上报其 Native 状态 |
 
 ## 备注
 - 外部资料只写入 `findings.md`。

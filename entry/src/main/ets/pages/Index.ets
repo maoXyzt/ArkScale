@@ -12,22 +12,14 @@ struct Index {
   private uiPid: number = bridge.getCurrentPid();
   @State private controlStatus: string = 'NOT REQUESTED';
   @State private extensionStatus: string = 'NO EVENT';
-  @State private nativeStatus: string = 'IDLE';
-  private statusTimer: number = -1;
+  @State private vpnNativeStatus: string = 'NO EVENT';
   private subscriber?: commonEventManager.CommonEventSubscriber;
 
   aboutToAppear(): void {
     this.subscribeVpnEvents();
-    this.statusTimer = setInterval(() => {
-      this.nativeStatus = bridge.getVpnProbeStatus();
-    }, 500);
   }
 
   aboutToDisappear(): void {
-    if (this.statusTimer !== -1) {
-      clearInterval(this.statusTimer);
-      this.statusTimer = -1;
-    }
     if (this.subscriber !== undefined) {
       commonEventManager.unsubscribe(this.subscriber);
       this.subscriber = undefined;
@@ -40,7 +32,7 @@ struct Index {
       this.subscriber = subscriber;
       commonEventManager.subscribe(subscriber,
         (error: BusinessError, data: commonEventManager.CommonEventData) => {
-          if (error.code) {
+          if (error?.code) {
             this.extensionStatus = `EVENT ERROR code=${error.code}`;
             return;
           }
@@ -49,7 +41,8 @@ struct Index {
             const parts = payload.split('|');
             const status = parts[0];
             const extensionPid = Number(parts[1]);
-            this.extensionStatus = `${status} pid=${extensionPid} sameProcess=${extensionPid === this.uiPid ? 'PASS' : 'FAIL'}`;
+            this.extensionStatus = `${status} pid=${extensionPid} process=${extensionPid === this.uiPid ? 'SAME' : 'SEPARATE'}`;
+            this.vpnNativeStatus = parts[2];
           }
         });
     } catch (error) {
@@ -105,7 +98,7 @@ struct Index {
       Text(`Extension: ${this.extensionStatus}`)
         .fontSize(14)
         .fontColor($r('app.color.secondary_text'))
-      Text(`Native: ${this.nativeStatus}`)
+      Text(`Native in VPN process: ${this.vpnNativeStatus}`)
         .fontSize(14)
         .fontColor($r('app.color.secondary_text'))
       Row({ space: 12 }) {

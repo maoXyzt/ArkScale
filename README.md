@@ -71,7 +71,7 @@ P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测�
 
 30 分钟测试期间应用会请求主窗口保持亮屏。请保持 ArkScale 在前台，并建议连接电源；手动锁屏、切到后台或系统拒绝保持亮屏时，本次结果无效。最终 PASS 除了要求经过 30 分钟，还要求 Go worker 实际产生至少 17000 个 100 ms tick，避免仅凭 ArkTS 墙上时间误判。
 
-P2 页面提供 `Start VPN probe` / `Stop VPN probe`。首次启动应出现系统 VPN 授权；允许后预期依次显示 `Control: START REQUESTED`、`Extension: READY ... sameProcess=PASS` 和 `Native: READY protected=PASS tunDup=PASS`，停止后 Native 预期显示 `STOPPED dupOwnership=PASS`。当前探针只路由保留测试地址 `192.0.2.2/32`，用于验证授权、进程保护和 TUN FD 所有权；尚未实现 packet echo 或接入 Tailscale。
+P2 页面提供 `Start VPN probe` / `Stop VPN probe`。首次启动应出现系统 VPN 授权；允许后预期依次显示 `Control: START REQUESTED`、`Extension: READY ... process=SEPARATE` 和 `Native in VPN process: READY protected=PASS tunDup=PASS`，停止后 Native 预期显示 `STOPPED dupOwnership=PASS`。HarmonyOS 会把 VPN Extension 放在应用的 `:vpn` 进程中，因此 Go engine 必须从 Extension 启动。当前探针只路由保留测试地址 `192.0.2.2/32`；尚未实现 packet echo 或接入 Tailscale。
 
 ## 实施门禁
 
