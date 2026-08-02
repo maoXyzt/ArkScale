@@ -87,7 +87,7 @@
   - P2 状态合并成一个 ArkUI Text，并启用 `CopyOptions.LocalDevice`；真机可长按选择并复制完整诊断块。
   - 停止握手与可复制诊断版已用当前 fnm pnpm 完成 signed HAP 构建，`verify:hap` 通过；真机最终显示 `STOPPED dupOwnership=PASS sameProcess=PASS`。
   - P2 最后一个探针使用系统 `connection.createNetConnection()` 监听默认网络 bearer；UI 新增可复制的 `Network` 行，仅在 Wi-Fi 与蜂窝之间变化时显示 `SWITCH PASS`。
-  - 新增 normal/system-grant 的 `GET_NETWORK_INFO` 权限及 HAP 门禁；当前 fnm pnpm 下 signed HAP 构建和 `verify:hap` 均通过，等待真机 Wi-Fi/蜂窝切换。
+  - 新增 normal/system-grant 的 `GET_NETWORK_INFO` 权限及 HAP 门禁；真机完成 Wi-Fi → 蜂窝 → Wi-Fi 双向切换，显示 `SWITCH PASS CELLULAR->WIFI ... switches=2`，P2 完成。
   - Hvigor 提示 entry module SemVer 警告，但 `0.1.0` 合法且当前不发布 ohpm 模块；不为无关发布路径扩展配置。
 - 创建/修改的文件：
   - `.gitignore`
@@ -142,7 +142,7 @@
 | P2 VPN 停止 fd 所有权真机 | Mate X7 / Stop VPN probe | 销毁原始 TUN 后复制 fd 仍有效，并显示 `dupOwnership=PASS` | `STOPPED dupOwnership=PASS sameProcess=PASS` | pass |
 | P2 两阶段停止与可复制状态本地构建 | `pnpm run build:hap && pnpm run verify:hap` | ArkTS 编译、签名打包和 HAP 校验通过 | BUILD SUCCESSFUL；HAP verification passed | pass |
 | P2 默认网络监听本地构建 | NetworkKit default network callback / GET_NETWORK_INFO | ArkTS 编译且权限进入 HAP | BUILD SUCCESSFUL；HAP verification passed | pass |
-| P2 Wi-Fi/蜂窝切换真机 | Mate X7 / VPN READY 后切换默认网络 | `Network: SWITCH PASS WIFI->CELLULAR` 或反向 | 待真机操作 | pending |
+| P2 Wi-Fi/蜂窝切换真机 | Mate X7 / VPN READY 后切换默认网络 | `Network: SWITCH PASS WIFI->CELLULAR` 或反向 | `SWITCH PASS CELLULAR->WIFI netId=118 switches=2` | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -179,17 +179,17 @@
 
 ## 当前诊断门禁
 - P0 已完成；实现不含 Tailscale 的最小 Go c-shared library，并接入现有 Node-API/HAP。
-- P0/P1 已完成；当前进入 P2 VPN/TUN/process-protect PoC。
-- P2 先实现最小 `VpnExtensionAbility`，在 Go 启动前调用 `protectProcessNet()`，再验证 TUN FD 所有权与网络切换。
+- P0/P1/P2 已完成；当前进入 P3 Tailscale backend。
+- P3 先审计 OpenHarmony 构建中误选的 Linux netns/netmon/router 路径，再接入 backend。
 
 ## 当前外部输入
-- P2 真机 VPN 授权、TUN FD 和 process-protect 结果。
+- 无；下一步输入均在固定的 Tailscale v1.82.5 checkout 中。
 
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 P2：VPN/TUN/process-protect PoC |
-| 我要去哪里？ | 先完成 TUN/protect PoC，再进入 P3 Tailscale backend |
+| 我在哪里？ | 阶段 P3：Tailscale backend |
+| 我要去哪里？ | 先隔离错误选择的 Linux 平台路径，再接入 userspace engine 与 LocalBackend |
 | 目标是什么？ | API 22+ ArkScale 最小客户端 |
 | 我学到了什么？ | 见 `findings.md` |
 | 我做了什么？ | 见上方记录 |

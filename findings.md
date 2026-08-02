@@ -116,3 +116,4 @@
 - 本机 API 22 SDK 明确支持 `Text.copyOption(CopyOptions.LocalDevice)`，可让一整块诊断文本长按选择并复制到设备剪贴板。
 - API 22 本地 SDK 的 `connection.createNetConnection()` 支持默认网络 `netCapabilitiesChange` 监听，所需 `GET_NETWORK_INFO` 是 normal/system-grant 权限；OpenHarmony 官方网络重连实践也以该事件识别 Wi-Fi/蜂窝默认网络变化：https://gitee.com/openharmony/communication_netmanager_base/wikis/pages/export?doc_id=3234573&type=pdf
 - P2 只记录 Wi-Fi 与蜂窝 bearer 的实际变化，忽略 VPN/其他 bearer，避免 TUN 创建后把 VPN 自身误报为网络切换。
+- Mate X7 真机完成 Wi-Fi → 蜂窝 → Wi-Fi 双向切换，最终显示 `SWITCH PASS CELLULAR->WIFI ... switches=2`；VPN 进程 PID、protect 和 TUN dup 状态全程保持 PASS，P2 完成。

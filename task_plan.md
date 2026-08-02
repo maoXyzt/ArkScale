@@ -4,7 +4,7 @@
 按已确认的门禁顺序完成可复现的 Tailscale/OpenHarmony 编译、Go c-shared 真机、VPN/TUN、Tailscale backend 和端到端验证。
 
 ## 当前阶段
-阶段 P2（in_progress：VPN/TUN/process-protect PoC）
+阶段 P3（in_progress：Tailscale backend）
 
 ## 各阶段
 
@@ -37,15 +37,15 @@
 - [x] 实现 `VpnExtensionAbility`
 - [x] 在 Go 启动前调用 `protectProcessNet()`
 - [x] 验证 TUN FD、`dup()` 所有权和同进程
-- [ ] 验证网络切换
-- **状态：** in_progress
+- [x] 验证网络切换
+- **状态：** completed
 
 ### 阶段 P3：Tailscale backend
 - [ ] 审计并隔离错误选择的 Linux 平台实现
 - [ ] 接入 userspace engine 与 LocalBackend
 - [ ] 实现动态路由、DNS、MTU 和 TUN 重建
 - [ ] 实现官方 Tailscale 交互式登录与状态持久化
-- **状态：** pending
+- **状态：** in_progress
 
 ### 阶段 P4：端到端网络
 - [ ] 验证 peer、DERP/直连、MagicDNS、IPv4/IPv6
