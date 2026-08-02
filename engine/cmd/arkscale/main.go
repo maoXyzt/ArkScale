@@ -8,20 +8,20 @@ import "C"
 
 import (
 	"sync"
+	"time"
 	"unsafe"
-
-	_ "tailscale.com/ipn/ipnlocal"
-	_ "tailscale.com/wgengine"
 )
 
 const (
 	resultOK              = 0
 	resultInvalidArgument = 1
 	resultNotImplemented  = 2
+	resultInternalError   = 3
 )
 
 var engineState struct {
 	sync.Mutex
+	backend    *backendRuntime
 	tun        *multiTUN
 	generation uint64
 }
@@ -31,7 +31,39 @@ func arkscale_start(configJSON *C.char) C.int {
 	if configJSON == nil {
 		return resultInvalidArgument
 	}
-	return resultNotImplemented
+	config, err := parseStartConfig(C.GoString(configJSON))
+	if err != nil {
+		_ = emitEngineEvent(healthEvent{
+			SchemaVersion: eventSchemaVersion,
+			Type:          "health",
+			Severity:      "error",
+			Message:       "invalid start configuration",
+		})
+		return resultInvalidArgument
+	}
+
+	engineState.Lock()
+	defer engineState.Unlock()
+	if engineState.backend != nil {
+		return resultOK
+	}
+	if engineState.tun == nil {
+		engineState.tun = newMultiTUN()
+	}
+	backend, err := newBackendRuntime(config, engineState.tun)
+	if err != nil {
+		_ = engineState.tun.Close()
+		engineState.tun = nil
+		_ = emitEngineEvent(healthEvent{
+			SchemaVersion: eventSchemaVersion,
+			Type:          "health",
+			Severity:      "error",
+			Message:       err.Error(),
+		})
+		return resultInternalError
+	}
+	engineState.backend = backend
+	return resultOK
 }
 
 //export arkscale_next_event
@@ -41,8 +73,25 @@ func arkscale_next_event(eventJSON **C.char, length *C.size_t, timeoutMS C.uint3
 	}
 	*eventJSON = nil
 	*length = 0
-	_ = timeoutMS
-	return resultNotImplemented
+	var event []byte
+	if timeoutMS == 0 {
+		select {
+		case event = <-engineEvents:
+		default:
+			return resultOK
+		}
+	} else {
+		timer := time.NewTimer(time.Duration(timeoutMS) * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case event = <-engineEvents:
+		case <-timer.C:
+			return resultOK
+		}
+	}
+	*eventJSON = (*C.char)(C.CBytes(event))
+	*length = C.size_t(len(event))
+	return resultOK
 }
 
 //export arkscale_free
@@ -72,13 +121,32 @@ func arkscale_set_tun(dupFD C.int, generation C.uint64_t) C.int {
 }
 
 //export arkscale_network_changed
-func arkscale_network_changed() {}
+func arkscale_network_changed() {
+	engineState.Lock()
+	backend := engineState.backend
+	engineState.Unlock()
+	if backend != nil {
+		backend.netMon.InjectEvent()
+	}
+}
 
 //export arkscale_stop
 func arkscale_stop() C.int {
 	engineState.Lock()
 	defer engineState.Unlock()
+	backend := engineState.backend
+	engineState.backend = nil
 	tun := engineState.tun
+	if backend != nil {
+		engineState.tun = nil
+		backend.Close()
+		_ = emitEngineEvent(stateEvent{
+			SchemaVersion: eventSchemaVersion,
+			Type:          "state",
+			State:         "stopped",
+		})
+		return resultOK
+	}
 	if tun != nil {
 		tun.Shutdown()
 	}

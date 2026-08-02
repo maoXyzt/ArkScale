@@ -12,6 +12,7 @@ enum arkscale_result {
     ARKSCALE_OK = 0,
     ARKSCALE_ERROR_INVALID_ARGUMENT = 1,
     ARKSCALE_ERROR_NOT_IMPLEMENTED = 2,
+    ARKSCALE_ERROR_INTERNAL = 3,
 };
 
 int arkscale_start(const char *config_json);
