@@ -2,9 +2,12 @@
 #include "arkscale_engine.h"
 #include "arkscale_smoke.h"
 
+#include <atomic>
 #include <fcntl.h>
+#include <new>
 #include <pthread.h>
 #include <stdio.h>
+#include <string>
 #include <unistd.h>
 
 static pthread_mutex_t vpnProbeMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -13,6 +16,279 @@ static pid_t vpnExtensionPid = -1;
 static bool vpnProcessProtected = false;
 static uint64_t vpnTunGeneration = 0;
 static char vpnProbeStatus[128] = "IDLE";
+
+static pthread_mutex_t enginePumpMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t enginePumpThread;
+static bool enginePumpThreadStarted = false;
+static bool engineStartPending = false;
+static std::atomic_bool enginePumpRunning(false);
+
+struct EngineEvent {
+    std::string json;
+};
+
+struct StartEngineWork {
+    napi_async_work work = nullptr;
+    napi_deferred deferred = nullptr;
+    napi_threadsafe_function eventCallback = nullptr;
+    std::string configJson;
+    int result = ARKSCALE_ERROR_INTERNAL;
+    bool pumpStarted = false;
+};
+
+struct StopEngineWork {
+    napi_async_work work = nullptr;
+    napi_deferred deferred = nullptr;
+    int result = ARKSCALE_ERROR_INTERNAL;
+};
+
+static napi_value CreateError(napi_env env, const char* message)
+{
+    napi_value text;
+    napi_value error;
+    napi_create_string_utf8(env, message, NAPI_AUTO_LENGTH, &text);
+    napi_create_error(env, nullptr, text, &error);
+    return error;
+}
+
+static void CallEngineEvent(napi_env env, napi_value callback, void*, void* data)
+{
+    EngineEvent* event = static_cast<EngineEvent*>(data);
+    if (env != nullptr && callback != nullptr) {
+        napi_value undefined;
+        napi_value value;
+        napi_get_undefined(env, &undefined);
+        napi_create_string_utf8(env, event->json.c_str(), event->json.size(), &value);
+        napi_call_function(env, undefined, callback, 1, &value, nullptr);
+    }
+    delete event;
+}
+
+static void* PumpEngineEvents(void* data)
+{
+    napi_threadsafe_function callback = static_cast<napi_threadsafe_function>(data);
+    while (enginePumpRunning.load()) {
+        char* json = nullptr;
+        size_t length = 0;
+        if (arkscale_next_event(&json, &length, 500) != ARKSCALE_OK) {
+            break;
+        }
+        if (json == nullptr || length == 0) {
+            continue;
+        }
+        EngineEvent* event = new (std::nothrow) EngineEvent{std::string(json, length)};
+        arkscale_free(json);
+        if (event == nullptr || napi_call_threadsafe_function(callback, event, napi_tsfn_blocking) != napi_ok) {
+            delete event;
+            break;
+        }
+    }
+    enginePumpRunning.store(false);
+    napi_release_threadsafe_function(callback, napi_tsfn_release);
+    return nullptr;
+}
+
+static bool StartEventPump(napi_threadsafe_function callback)
+{
+    pthread_mutex_lock(&enginePumpMutex);
+    if (enginePumpThreadStarted) {
+        pthread_mutex_unlock(&enginePumpMutex);
+        return false;
+    }
+    enginePumpRunning.store(true);
+    int result = pthread_create(&enginePumpThread, nullptr, PumpEngineEvents, callback);
+    enginePumpThreadStarted = result == 0;
+    if (result != 0) {
+        enginePumpRunning.store(false);
+    }
+    pthread_mutex_unlock(&enginePumpMutex);
+    return result == 0;
+}
+
+static void StopEventPump()
+{
+    enginePumpRunning.store(false);
+    pthread_mutex_lock(&enginePumpMutex);
+    if (enginePumpThreadStarted) {
+        pthread_join(enginePumpThread, nullptr);
+        enginePumpThreadStarted = false;
+    }
+    pthread_mutex_unlock(&enginePumpMutex);
+}
+
+static void SetEngineStartPending(bool pending)
+{
+    pthread_mutex_lock(&enginePumpMutex);
+    engineStartPending = pending;
+    pthread_mutex_unlock(&enginePumpMutex);
+}
+
+static napi_value StartEngine(napi_env env, napi_callback_info info)
+{
+    size_t argc = 2;
+    napi_value argv[2];
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc != 2) {
+        napi_throw_type_error(env, nullptr, "startEngine requires config JSON and an event callback");
+        return nullptr;
+    }
+    pthread_mutex_lock(&enginePumpMutex);
+    bool alreadyStarted = enginePumpThreadStarted || engineStartPending;
+    if (!alreadyStarted) {
+        engineStartPending = true;
+    }
+    pthread_mutex_unlock(&enginePumpMutex);
+    if (alreadyStarted) {
+        napi_throw_error(env, nullptr, "Tailscale backend is already started");
+        return nullptr;
+    }
+    size_t configLength = 0;
+    napi_valuetype callbackType;
+    if (napi_get_value_string_utf8(env, argv[0], nullptr, 0, &configLength) != napi_ok || configLength == 0 ||
+        configLength > 16384 || napi_typeof(env, argv[1], &callbackType) != napi_ok || callbackType != napi_function) {
+        SetEngineStartPending(false);
+        napi_throw_type_error(env, nullptr, "invalid engine config or callback");
+        return nullptr;
+    }
+
+    StartEngineWork* context = new (std::nothrow) StartEngineWork;
+    if (context == nullptr) {
+        SetEngineStartPending(false);
+        napi_throw_error(env, nullptr, "unable to allocate engine work");
+        return nullptr;
+    }
+    context->configJson.resize(configLength);
+    if (napi_get_value_string_utf8(env, argv[0], &context->configJson[0], configLength + 1, &configLength) != napi_ok) {
+        SetEngineStartPending(false);
+        delete context;
+        napi_throw_type_error(env, nullptr, "unable to read engine config");
+        return nullptr;
+    }
+
+    napi_value resourceName;
+    napi_value promise;
+    napi_create_string_utf8(env, "ArkScaleEngineEvents", NAPI_AUTO_LENGTH, &resourceName);
+    if (napi_create_threadsafe_function(env, argv[1], nullptr, resourceName, 64, 1, nullptr, nullptr, nullptr,
+        CallEngineEvent, &context->eventCallback) != napi_ok) {
+        SetEngineStartPending(false);
+        delete context;
+        napi_throw_error(env, nullptr, "unable to create engine event bridge");
+        return nullptr;
+    }
+    if (napi_create_promise(env, &context->deferred, &promise) != napi_ok) {
+        SetEngineStartPending(false);
+        napi_release_threadsafe_function(context->eventCallback, napi_tsfn_abort);
+        delete context;
+        napi_throw_error(env, nullptr, "unable to create engine promise");
+        return nullptr;
+    }
+
+    napi_create_string_utf8(env, "ArkScaleStartEngine", NAPI_AUTO_LENGTH, &resourceName);
+    napi_status status = napi_create_async_work(env, nullptr, resourceName,
+        [](napi_env, void* data) {
+            StartEngineWork* work = static_cast<StartEngineWork*>(data);
+            work->result = arkscale_start(work->configJson.c_str());
+            if (work->result == ARKSCALE_OK) {
+                work->pumpStarted = StartEventPump(work->eventCallback);
+            }
+            if (work->result == ARKSCALE_OK && !work->pumpStarted) {
+                arkscale_stop();
+                work->result = ARKSCALE_ERROR_INTERNAL;
+            }
+        },
+        [](napi_env env, napi_status status, void* data) {
+            StartEngineWork* work = static_cast<StartEngineWork*>(data);
+            SetEngineStartPending(false);
+            if (status == napi_ok && work->result == ARKSCALE_OK) {
+                napi_value value;
+                napi_get_boolean(env, true, &value);
+                napi_resolve_deferred(env, work->deferred, value);
+            } else {
+                if (!work->pumpStarted) {
+                    napi_release_threadsafe_function(work->eventCallback, napi_tsfn_abort);
+                }
+                napi_reject_deferred(env, work->deferred, CreateError(env, "unable to start Tailscale backend"));
+            }
+            napi_delete_async_work(env, work->work);
+            delete work;
+        }, context, &context->work);
+    if (status != napi_ok || napi_queue_async_work(env, context->work) != napi_ok) {
+        SetEngineStartPending(false);
+        napi_release_threadsafe_function(context->eventCallback, napi_tsfn_abort);
+        if (context->work != nullptr) {
+            napi_delete_async_work(env, context->work);
+        }
+        delete context;
+        napi_throw_error(env, nullptr, "unable to queue engine start");
+        return nullptr;
+    }
+    return promise;
+}
+
+static napi_value StopEngine(napi_env env, napi_callback_info)
+{
+    StopEngineWork* context = new (std::nothrow) StopEngineWork;
+    if (context == nullptr) {
+        napi_throw_error(env, nullptr, "unable to allocate engine work");
+        return nullptr;
+    }
+    napi_value promise;
+    napi_value resourceName;
+    if (napi_create_promise(env, &context->deferred, &promise) != napi_ok) {
+        delete context;
+        napi_throw_error(env, nullptr, "unable to create engine stop promise");
+        return nullptr;
+    }
+    napi_create_string_utf8(env, "ArkScaleStopEngine", NAPI_AUTO_LENGTH, &resourceName);
+    napi_status status = napi_create_async_work(env, nullptr, resourceName,
+        [](napi_env, void* data) {
+            StopEngineWork* work = static_cast<StopEngineWork*>(data);
+            work->result = arkscale_stop();
+            StopEventPump();
+        },
+        [](napi_env env, napi_status status, void* data) {
+            StopEngineWork* work = static_cast<StopEngineWork*>(data);
+            if (status == napi_ok && work->result == ARKSCALE_OK) {
+                napi_value value;
+                napi_get_boolean(env, true, &value);
+                napi_resolve_deferred(env, work->deferred, value);
+            } else {
+                napi_reject_deferred(env, work->deferred, CreateError(env, "unable to stop Tailscale backend"));
+            }
+            napi_delete_async_work(env, work->work);
+            delete work;
+        }, context, &context->work);
+    if (status != napi_ok || napi_queue_async_work(env, context->work) != napi_ok) {
+        if (context->work != nullptr) {
+            napi_delete_async_work(env, context->work);
+        }
+        delete context;
+        napi_throw_error(env, nullptr, "unable to queue engine stop");
+        return nullptr;
+    }
+    return promise;
+}
+
+static napi_value NetworkChanged(napi_env env, napi_callback_info)
+{
+    arkscale_network_changed();
+    napi_value value;
+    napi_get_undefined(env, &value);
+    return value;
+}
+
+static napi_value SuspendVpnTun(napi_env env, napi_callback_info)
+{
+    bool cleared = arkscale_clear_tun() == ARKSCALE_OK;
+    pthread_mutex_lock(&vpnProbeMutex);
+    if (vpnProbeFd >= 0) {
+        close(vpnProbeFd);
+        vpnProbeFd = -1;
+    }
+    pthread_mutex_unlock(&vpnProbeMutex);
+    napi_value value;
+    napi_get_boolean(env, cleared, &value);
+    return value;
+}
 
 static napi_value GetVersion(napi_env env, napi_callback_info)
 {
@@ -81,7 +357,6 @@ static napi_value GetGoSmokeTicks(napi_env env, napi_callback_info)
 
 static napi_value BeginVpnProbe(napi_env env, napi_callback_info)
 {
-    arkscale_stop();
     pthread_mutex_lock(&vpnProbeMutex);
     if (vpnProbeFd >= 0) {
         close(vpnProbeFd);
@@ -227,6 +502,10 @@ static napi_value Init(napi_env env, napi_value exports)
         {"stopVpnProbe", nullptr, StopVpnProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getVpnProbeStatus", nullptr, GetVpnProbeStatus, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getCurrentPid", nullptr, GetCurrentPid, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"startEngine", nullptr, StartEngine, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"stopEngine", nullptr, StopEngine, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"networkChanged", nullptr, NetworkChanged, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"suspendVpnTun", nullptr, SuspendVpnTun, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties);
     return exports;

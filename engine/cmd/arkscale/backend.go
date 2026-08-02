@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"go4.org/netipx"
 	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnlocal"
 	"tailscale.com/ipn/store"
@@ -231,12 +232,16 @@ func (r *backendRuntime) setConfig(routeConfig *router.Config, dnsConfig *dns.OS
 		r.mtu = routeConfig.NewMTU
 	}
 	r.configGeneration++
+	effectiveRoutes, err := subtractRoutes(routeConfig.Routes, routeConfig.LocalRoutes)
+	if err != nil {
+		return err
+	}
 	event := vpnConfigEvent{
 		SchemaVersion: eventSchemaVersion,
 		Type:          "vpn-config",
 		Generation:    r.configGeneration,
 		LocalAddrs:    prefixes(routeConfig.LocalAddrs),
-		Routes:        prefixes(routeConfig.Routes),
+		Routes:        prefixes(effectiveRoutes),
 		LocalRoutes:   prefixes(routeConfig.LocalRoutes),
 		Nameservers:   make([]string, 0),
 		SearchDomains: make([]string, 0),
@@ -251,6 +256,21 @@ func (r *backendRuntime) setConfig(routeConfig *router.Config, dnsConfig *dns.OS
 		}
 	}
 	return r.emit(event)
+}
+
+func subtractRoutes(routes, localRoutes []netip.Prefix) ([]netip.Prefix, error) {
+	var builder netipx.IPSetBuilder
+	for _, route := range routes {
+		builder.AddPrefix(route)
+	}
+	for _, route := range localRoutes {
+		builder.RemovePrefix(route)
+	}
+	set, err := builder.IPSet()
+	if err != nil {
+		return nil, err
+	}
+	return set.Prefixes(), nil
 }
 
 func prefixes(values []netip.Prefix) []prefixEvent {

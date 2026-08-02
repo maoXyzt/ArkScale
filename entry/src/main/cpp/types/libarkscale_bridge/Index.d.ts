@@ -11,3 +11,7 @@ export const failVpnProbe: (errorCode: number) => boolean;
 export const stopVpnProbe: () => boolean;
 export const getVpnProbeStatus: () => string;
 export const getCurrentPid: () => number;
+export const startEngine: (configJson: string, listener: (eventJson: string) => void) => Promise<boolean>;
+export const stopEngine: () => Promise<boolean>;
+export const networkChanged: () => void;
+export const suspendVpnTun: () => boolean;

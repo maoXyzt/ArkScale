@@ -38,6 +38,7 @@ for ARKSCALE_SYMBOL in \
   arkscale_next_event \
   arkscale_free \
   arkscale_set_tun \
+  arkscale_clear_tun \
   arkscale_network_changed \
   arkscale_stop
 do

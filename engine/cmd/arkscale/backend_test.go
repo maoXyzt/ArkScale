@@ -27,8 +27,11 @@ func TestBackendProtocol(t *testing.T) {
 	runtime := &backendRuntime{mtu: harmonyTunMTU}
 	err = runtime.setConfig(&router.Config{
 		LocalAddrs: []netip.Prefix{netip.MustParsePrefix("100.64.0.1/32"), netip.MustParsePrefix("fd7a:115c:a1e0::1/128")},
-		Routes:     []netip.Prefix{netip.MustParsePrefix("100.64.0.2/32")},
-		NewMTU:     1400,
+		Routes:     []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
+		LocalRoutes: []netip.Prefix{
+			netip.MustParsePrefix("10.0.0.0/9"),
+		},
+		NewMTU: 1400,
 	}, &dns.OSConfig{
 		Nameservers:   []netip.Addr{netip.MustParseAddr("100.100.100.100")},
 		SearchDomains: []dnsname.FQDN{"tailnet.ts.net."},
@@ -42,6 +45,7 @@ func TestBackendProtocol(t *testing.T) {
 	}
 	if event.Generation != 1 || event.MTU != 1400 || len(event.LocalAddrs) != 2 ||
 		event.LocalAddrs[0].Family != 1 || event.LocalAddrs[1].Family != 2 ||
+		len(event.Routes) != 1 || event.Routes[0].IP != "10.128.0.0" || event.Routes[0].PrefixLength != 9 ||
 		len(event.Nameservers) != 1 || event.SearchDomains[0] != "tailnet.ts.net" {
 		t.Fatalf("vpn config event = %+v", event)
 	}

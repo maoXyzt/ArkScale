@@ -20,6 +20,7 @@ int arkscale_next_event(char **json, size_t *len, uint32_t timeout_ms);
 void arkscale_free(void *ptr);
 /* The engine owns dup_fd only when ARKSCALE_OK is returned. */
 int arkscale_set_tun(int dup_fd, uint64_t generation);
+int arkscale_clear_tun(void);
 void arkscale_network_changed(void);
 int arkscale_stop(void);
 

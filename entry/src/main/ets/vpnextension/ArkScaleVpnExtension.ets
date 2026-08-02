@@ -4,6 +4,30 @@ import bridge from 'libarkscale_bridge.so';
 
 const VPN_PROBE_EVENT = 'com.arkscale.client.VPN_PROBE_STATUS';
 const VPN_PROBE_COMMAND_EVENT = 'com.arkscale.client.VPN_PROBE_COMMAND';
+const ENGINE_EVENT = 'com.arkscale.client.ENGINE_EVENT';
+const BUNDLE_NAME = 'com.arkscale.client';
+
+interface EnginePrefix {
+  ip: string;
+  prefixLength: number;
+  family: number;
+}
+
+interface EngineEvent {
+  schemaVersion: number;
+  type: string;
+  state?: string;
+  url?: string;
+  severity?: string;
+  message?: string;
+  generation?: number;
+  localAddrs?: Array<EnginePrefix>;
+  routes?: Array<EnginePrefix>;
+  localRoutes?: Array<EnginePrefix>;
+  nameservers?: Array<string>;
+  searchDomains?: Array<string>;
+  mtu?: number;
+}
 
 export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   private connection?: vpnExtension.VpnConnection;
@@ -14,6 +38,13 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   private networkSwitches: number = 0;
   private stopping: boolean = false;
   private stopCompleted: boolean = false;
+  private engineStarted: boolean = false;
+  private tunActive: boolean = false;
+  private appliedGeneration: number = 0;
+  private startWork: Promise<void> = Promise.resolve();
+  private configWork: Promise<void> = Promise.resolve();
+  private pendingConfig?: EngineEvent;
+  private configApplying: boolean = false;
 
   onCreate(): void {
     this.initializeProbe();
@@ -33,7 +64,10 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
 
   private async initializeProbe(): Promise<void> {
     try {
-      const subscriber = await commonEventManager.createSubscriber({ events: [VPN_PROBE_COMMAND_EVENT] });
+      const subscriber = await commonEventManager.createSubscriber({
+        events: [VPN_PROBE_COMMAND_EVENT],
+        publisherBundleName: BUNDLE_NAME
+      });
       this.commandSubscriber = subscriber;
       commonEventManager.subscribe(subscriber,
         (error: BusinessError, data: commonEventManager.CommonEventData) => {
@@ -47,7 +81,8 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
           }
         });
       this.publishStatus('ON_CREATE');
-      await this.startProbe();
+      this.startWork = this.startProbe();
+      await this.startWork;
     } catch (error) {
       const errorCode = (error as BusinessError).code ?? -1;
       bridge.failVpnProbe(errorCode);
@@ -64,32 +99,19 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
       bridge.markVpnProtected();
       this.publishStatus('PROTECTED');
       this.startNetworkProbe();
-
-      const tunFd = await this.connection.create({
-        addresses: [{
-          address: { address: '192.0.2.1', family: 1 },
-          prefixLength: 32
-        }],
-        routes: [{
-          interface: 'vpn-tun',
-          destination: {
-            address: { address: '192.0.2.2', family: 1 },
-            prefixLength: 32
-          },
-          gateway: { address: '0.0.0.0', family: 1 },
-          hasGateway: false,
-          isDefaultRoute: false
-        }],
-        mtu: 1280,
-        isIPv4Accepted: true,
-        isIPv6Accepted: false,
-        isBlocking: false
-      });
-      if (!bridge.attachVpnTun(tunFd)) {
-        throw new Error('Unable to duplicate TUN file descriptor');
-      }
-      this.publishStatus('READY');
+      await bridge.startEngine(JSON.stringify({ schemaVersion: 1, stateDir: this.context.filesDir }),
+        (eventJson: string) => this.handleEngineEvent(eventJson));
+      this.engineStarted = true;
+      this.publishStatus('BACKEND READY');
     } catch (error) {
+      if (this.engineStarted) {
+        try {
+          await bridge.stopEngine();
+        } catch (stopError) {
+          console.error(`Backend cleanup failed: ${(stopError as BusinessError).code ?? -1}`);
+        }
+        this.engineStarted = false;
+      }
       await this.destroyConnection();
       const errorCode = (error as BusinessError).code ?? -1;
       bridge.failVpnProbe(errorCode);
@@ -99,7 +121,21 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
 
   private async stopProbe(): Promise<void> {
     this.stopNetworkProbe();
-    const errorCode = await this.destroyConnection();
+    await this.startWork;
+    await this.configWork;
+    this.pendingConfig = undefined;
+    let engineErrorCode = 0;
+    if (this.engineStarted) {
+      try {
+        await bridge.stopEngine();
+      } catch (error) {
+        engineErrorCode = (error as BusinessError).code ?? -1;
+      }
+      this.engineStarted = false;
+    }
+    const destroyErrorCode = await this.destroyConnection();
+    this.tunActive = false;
+    const errorCode = engineErrorCode !== 0 ? engineErrorCode : destroyErrorCode;
     if (errorCode === 0) {
       bridge.stopVpnProbe();
       this.stopCompleted = true;
@@ -121,6 +157,7 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
         if (!this.networkMonitoring) {
           return;
         }
+        bridge.networkChanged();
         const nextBearer = this.physicalBearer(info.netCap.bearerTypes);
         if (nextBearer === 'UNKNOWN' || nextBearer === this.networkBearer) {
           return;
@@ -184,8 +221,142 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     return 0;
   }
 
+  private handleEngineEvent(eventJson: string): void {
+    if (this.stopping) {
+      return;
+    }
+    try {
+      const event = JSON.parse(eventJson) as EngineEvent;
+      if (event.schemaVersion !== 1) {
+        throw new Error('Unsupported engine event schema');
+      }
+      if (event.type === 'vpn-config') {
+        if (this.pendingConfig === undefined || (event.generation ?? 0) > (this.pendingConfig.generation ?? 0)) {
+          this.pendingConfig = event;
+        }
+        if (!this.configApplying) {
+          this.configApplying = true;
+          this.configWork = this.applyPendingConfigs();
+        }
+      } else if (event.type === 'login-url') {
+        if (event.url === undefined || !event.url.startsWith('https://login.tailscale.com/') || event.url.length > 2048) {
+          throw new Error('Invalid Tailscale login URL');
+        }
+        this.publishEngineEvent(eventJson);
+      } else if (event.type === 'state' || event.type === 'health') {
+        this.publishEngineEvent(eventJson);
+      }
+    } catch (error) {
+      bridge.failVpnProbe(-1);
+      this.publishStatus(`ENGINE EVENT FAIL ${(error as Error).message}`);
+    }
+  }
+
+  private async applyPendingConfigs(): Promise<void> {
+    while (!this.stopping && this.pendingConfig !== undefined) {
+      const event = this.pendingConfig;
+      this.pendingConfig = undefined;
+      try {
+        await this.applyVpnConfig(event);
+      } catch (error) {
+        bridge.failVpnProbe(-1);
+        this.publishStatus(`CONFIG FAIL ${(error as Error).message}`);
+      }
+    }
+    this.configApplying = false;
+  }
+
+  private async applyVpnConfig(event: EngineEvent): Promise<void> {
+    const generation = event.generation;
+    const localAddrs = event.localAddrs;
+    const routes = event.routes;
+    const nameservers = event.nameservers;
+    const searchDomains = event.searchDomains;
+    const mtu = event.mtu;
+    if (generation === undefined || generation <= this.appliedGeneration || generation % 1 !== 0) {
+      return;
+    }
+    if (localAddrs === undefined || localAddrs.length === 0 || !localAddrs.every((prefix: EnginePrefix) =>
+      this.validPrefix(prefix))) {
+      throw new Error('Invalid local addresses');
+    }
+    if (routes === undefined || routes.length === 0 || routes.length > 1024 || !routes.every((prefix: EnginePrefix) =>
+      this.validPrefix(prefix))) {
+      throw new Error('Invalid routes');
+    }
+    if (nameservers === undefined || nameservers.some((address: string) => address.length === 0) ||
+      searchDomains === undefined || searchDomains.some((domain: string) => domain.length === 0) ||
+      mtu === undefined || mtu < 1280 || mtu > 9000) {
+      throw new Error('Invalid DNS or MTU');
+    }
+
+    const config: vpnExtension.VpnConfig = {
+      addresses: localAddrs.map((address: EnginePrefix): connection.LinkAddress => ({
+        address: { address: address.ip, family: address.family },
+        prefixLength: address.prefixLength
+      })),
+      routes: routes.map((route: EnginePrefix): connection.RouteInfo => ({
+        interface: 'vpn-tun',
+        destination: {
+          address: { address: route.ip, family: route.family },
+          prefixLength: route.prefixLength
+        },
+        gateway: { address: route.family === 1 ? '0.0.0.0' : '::', family: route.family },
+        hasGateway: false,
+        isDefaultRoute: route.prefixLength === 0
+      })),
+      dnsAddresses: nameservers,
+      searchDomains: searchDomains,
+      mtu: mtu,
+      isIPv4Accepted: localAddrs.some((address: EnginePrefix) => address.family === 1),
+      isIPv6Accepted: localAddrs.some((address: EnginePrefix) => address.family === 2),
+      isBlocking: false
+    };
+
+    if (this.tunActive) {
+      if (!bridge.suspendVpnTun()) {
+        throw new Error('Unable to suspend old TUN');
+      }
+      const destroyError = await this.destroyConnection();
+      this.tunActive = false;
+      if (destroyError !== 0) {
+        throw new Error(`Unable to destroy old TUN: ${destroyError}`);
+      }
+    }
+    if (this.connection === undefined) {
+      this.connection = vpnExtension.createVpnConnection(this.context);
+    }
+    let tunFd: number;
+    try {
+      tunFd = await this.connection.create(config);
+    } catch (error) {
+      throw new Error(`Unable to create TUN: ${(error as BusinessError).code ?? -1}`);
+    }
+    if (!bridge.attachVpnTun(tunFd)) {
+      await this.destroyConnection();
+      throw new Error('Unable to attach new TUN');
+    }
+    this.tunActive = true;
+    this.appliedGeneration = generation;
+    this.publishStatus(`READY configGen=${generation}`);
+  }
+
+  private validPrefix(prefix: EnginePrefix): boolean {
+    return prefix.ip.length > 0 && (prefix.family === 1 || prefix.family === 2) &&
+      prefix.prefixLength >= 0 && prefix.prefixLength <= (prefix.family === 1 ? 32 : 128);
+  }
+
+  private publishEngineEvent(eventJson: string): void {
+    commonEventManager.publish(ENGINE_EVENT, { bundleName: BUNDLE_NAME, data: eventJson }, (error: BusinessError) => {
+      if (error?.code) {
+        console.error(`Engine event publish failed: ${error.code}`);
+      }
+    });
+  }
+
   private publishStatus(status: string): void {
     commonEventManager.publish(VPN_PROBE_EVENT, {
+      bundleName: BUNDLE_NAME,
       data: `${status}|${bridge.getCurrentPid()}|${bridge.getVpnProbeStatus()}`
     }, (error: BusinessError) => {
       if (error?.code) {

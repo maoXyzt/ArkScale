@@ -120,6 +120,16 @@ func arkscale_set_tun(dupFD C.int, generation C.uint64_t) C.int {
 	return resultOK
 }
 
+//export arkscale_clear_tun
+func arkscale_clear_tun() C.int {
+	engineState.Lock()
+	defer engineState.Unlock()
+	if engineState.tun != nil {
+		engineState.tun.Shutdown()
+	}
+	return resultOK
+}
+
 //export arkscale_network_changed
 func arkscale_network_changed() {
 	engineState.Lock()
