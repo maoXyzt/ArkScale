@@ -3,6 +3,7 @@ import { vpnExtension } from '@kit.NetworkKit';
 import bridge from 'libarkscale_bridge.so';
 
 const VPN_PROBE_EVENT = 'com.arkscale.client.VPN_PROBE_STATUS';
+const VPN_PROBE_COMMAND_EVENT = 'com.arkscale.client.VPN_PROBE_COMMAND';
 
 @Entry
 @Component
@@ -14,6 +15,7 @@ struct Index {
   @State private extensionStatus: string = 'NO EVENT';
   @State private vpnNativeStatus: string = 'NO EVENT';
   private subscriber?: commonEventManager.CommonEventSubscriber;
+  private stopRequested: boolean = false;
 
   aboutToAppear(): void {
     this.subscribeVpnEvents();
@@ -43,6 +45,13 @@ struct Index {
             const extensionPid = Number(parts[1]);
             this.extensionStatus = `${status} pid=${extensionPid} process=${extensionPid === this.uiPid ? 'SAME' : 'SEPARATE'}`;
             this.vpnNativeStatus = parts[2];
+            if (status === 'STOPPED' && this.stopRequested) {
+              this.stopRequested = false;
+              this.finishVpnStop();
+            } else if (status.startsWith('STOP FAIL') && this.stopRequested) {
+              this.stopRequested = false;
+              this.controlStatus = 'STOP FAILED IN EXTENSION';
+            }
           }
         });
     } catch (error) {
@@ -51,6 +60,7 @@ struct Index {
   }
 
   private async startVpn(): Promise<void> {
+    this.stopRequested = false;
     this.controlStatus = 'REQUESTING';
     try {
       await vpnExtension.startVpnExtensionAbility({
@@ -64,18 +74,46 @@ struct Index {
     }
   }
 
-  private async stopVpn(): Promise<void> {
-    this.controlStatus = 'STOPPING';
+  private stopVpn(): void {
+    if (this.stopRequested) {
+      return;
+    }
+    this.stopRequested = true;
+    this.controlStatus = 'STOP REQUESTED';
+    try {
+      commonEventManager.publish(VPN_PROBE_COMMAND_EVENT, { data: 'STOP' }, (error: BusinessError) => {
+        if (error?.code) {
+          this.stopRequested = false;
+          this.controlStatus = `STOP COMMAND FAILED code=${error.code}`;
+        }
+      });
+    } catch (error) {
+      this.stopRequested = false;
+      this.controlStatus = `STOP COMMAND FAILED code=${(error as BusinessError).code}`;
+    }
+  }
+
+  private async finishVpnStop(): Promise<void> {
+    this.controlStatus = 'STOPPING EXTENSION';
     try {
       await vpnExtension.stopVpnExtensionAbility({
         bundleName: 'com.arkscale.client',
         moduleName: 'entry',
         abilityName: 'ArkScaleVpnExtension'
       });
-      this.controlStatus = 'STOP REQUESTED';
+      this.controlStatus = 'STOPPED';
     } catch (error) {
-      this.controlStatus = `STOP FAILED code=${(error as BusinessError).code}`;
+      this.controlStatus = `EXTENSION STOP FAILED code=${(error as BusinessError).code}`;
     }
+  }
+
+  private diagnosticText(): string {
+    return `${bridge.getVersion()}\n` +
+      `${this.goSmokePassed ? 'Go smoke: PASS' : 'Go smoke: FAIL'}\n` +
+      `${this.lifecyclePassed ? '100 start/stop cycles: PASS' : '100 start/stop cycles: FAIL'}\n` +
+      `Control: ${this.controlStatus}\n` +
+      `Extension: ${this.extensionStatus}\n` +
+      `Native in VPN process: ${this.vpnNativeStatus}`;
   }
 
   build() {
@@ -83,23 +121,12 @@ struct Index {
       Text('ArkScale P2')
         .fontSize(28)
         .fontWeight(FontWeight.Bold)
-      Text(bridge.getVersion())
-        .fontSize(16)
-        .fontColor($r('app.color.secondary_text'))
-      Text(this.goSmokePassed ? 'Go smoke: PASS' : 'Go smoke: FAIL')
+      Text(this.diagnosticText())
         .fontSize(14)
         .fontColor($r('app.color.secondary_text'))
-      Text(this.lifecyclePassed ? '100 start/stop cycles: PASS' : '100 start/stop cycles: FAIL')
-        .fontSize(14)
-        .fontColor($r('app.color.secondary_text'))
-      Text(`Control: ${this.controlStatus}`)
-        .fontSize(14)
-        .fontColor($r('app.color.secondary_text'))
-      Text(`Extension: ${this.extensionStatus}`)
-        .fontSize(14)
-        .fontColor($r('app.color.secondary_text'))
-      Text(`Native in VPN process: ${this.vpnNativeStatus}`)
-        .fontSize(14)
+        .copyOption(CopyOptions.LocalDevice)
+      Text('Long press the status text to copy')
+        .fontSize(12)
         .fontColor($r('app.color.secondary_text'))
       Row({ space: 12 }) {
         Button('Start VPN probe')

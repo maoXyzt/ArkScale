@@ -82,6 +82,10 @@
   - 真机堆栈确认 Extension 已进入 `onCreate` 和 `ProtectProcessNet`，系统自动使用 `com.arkscale.client:vpn` 独立进程；闪退根因是 CommonEvent 成功回调传入 null error，代码读取 `error.code`。
   - 修复所有 CommonEvent callback 的 null error 处理；删除无意义的 UI Native 轮询，改由 VPN 进程在事件中携带其 Native 探针状态。
   - VPN 进程闪退修复后的 signed HAP 已无 ArkTS/C++ 错误构建，HAP 与 whitespace 门禁通过；待同一真机复验。
+  - 真机 Start 已通过 `process=SEPARATE`、`protected=PASS`、`tunDup=PASS`、`sameProcess=PASS`；P2 的启动/保护/复制路径成立。
+  - 真机 Stop 只到 `ON_DESTROY`：UI 先销毁 Extension，导致其同步生命周期结束早于异步 `connection.destroy()` 和 native fd 校验。停止流程现改为命令事件握手，收到 `STOPPED ... dupOwnership=PASS` 后才销毁 Extension。
+  - P2 状态合并成一个 ArkUI Text，并启用 `CopyOptions.LocalDevice`；真机可长按选择并复制完整诊断块。
+  - 停止握手与可复制诊断版已用当前 fnm pnpm 完成 signed HAP 构建，`verify:hap` 通过；最终 stop 所有权结果等待真机复验。
   - Hvigor 提示 entry module SemVer 警告，但 `0.1.0` 合法且当前不发布 ohpm 模块；不为无关发布路径扩展配置。
 - 创建/修改的文件：
   - `.gitignore`
@@ -132,6 +136,9 @@
 | P1 防熄屏与 tick 门禁静态检查 | Window API / C ABI / Node-API / shell scripts | API 22+ 可编译且符号一致 | SDK 接口确认；C/C++/shell 静态检查通过 | pass |
 | P1 30 分钟真机持续运行 | 设备 `5NC0226529000198` / 保持前台亮屏 | 30 分钟且 Go tick 门槛通过 | 用户确认 `PASS (30m 0s)` | pass |
 | P2 VPN 平台探针本地构建 | VPN Extension / protect / `/32` TUN / Native dup | ArkTS/C++ 无诊断且 HAP 声明完整 | signed HAP 构建成功；HAP/Clang/ShellCheck 通过 | pass |
+| P2 VPN 启动路径真机 | Mate X7 / Start VPN probe | 独立 VPN 进程、protect、TUN dup、native 同进程均通过 | `READY protected=PASS tunDup=PASS sameProcess=PASS` | pass |
+| P2 VPN 停止 fd 所有权真机 | Mate X7 / Stop VPN probe | 销毁原始 TUN 后复制 fd 仍有效，并显示 `dupOwnership=PASS` | 首次只到 `ON_DESTROY`；已改两阶段停止握手，待复验 | pending |
+| P2 两阶段停止与可复制状态本地构建 | `pnpm run build:hap && pnpm run verify:hap` | ArkTS 编译、签名打包和 HAP 校验通过 | BUILD SUCCESSFUL；HAP verification passed | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -164,6 +171,7 @@
 | 2026-08-02 | P1 bridge dynamic section 泄露宿主机绝对 RUNPATH | 1 | 先将检查写入 `verify:hap`，再从 CMake target 移除 build-tree rpath |
 | 2026-08-02 | 自动执行 HDC 设备列表返回 `Connect server failed`，受控提权被拒绝 | 2 | 不绕过本机 daemon；由用户终端运行 `hdc list targets` |
 | 2026-08-02 | 沙箱内执行 `hdc help` 仍等待本机 daemon | 1 | 不重复；使用本地文档和用户已确认的设备结果继续 |
+| 2026-08-03 | P2 Stop 在 `onDestroy` 后未上报 `dupOwnership=PASS` | 1 | 改成 Extension 内先完成 destroy/dup 校验并发布 STOPPED，UI 再调用 stop ability |
 
 ## 当前诊断门禁
 - P0 已完成；实现不含 Tailscale 的最小 Go c-shared library，并接入现有 Node-API/HAP。

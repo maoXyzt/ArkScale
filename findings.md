@@ -106,3 +106,10 @@
 
 ## 视觉/浏览器发现
 - 固定 Tailscale tag 的网页读取未返回内容；不据此引入新的源码假设，P0 以实际 checkout 为准。
+
+## P2 真机停止阶段诊断（2026-08-03）
+
+- Start 真机门禁已通过：Extension 运行在独立 `:vpn` 进程，`protectProcessNet()`、TUN fd 复制以及同进程 native 校验均为 PASS。
+- Stop 当前只收到 `ON_DESTROY`，没有 `STOPPED` / `dupOwnership=PASS`。根因是 UI 先调用 `stopVpnExtensionAbility()`，系统进入同步 `onDestroy()` 后直接回收 VPN 进程；`onDestroy()` 中未被等待的异步 `connection.destroy()` 与最终状态发布来不及完成。
+- 修复方向：增加 UI → VPN Extension 的停止命令事件。Extension 先销毁系统持有的原始 TUN fd，再由 native 校验复制 fd 仍有效并关闭它，发布 `STOPPED ... dupOwnership=PASS`；UI 收到该状态后才停止 Extension。
+- 本机 API 22 SDK 明确支持 `Text.copyOption(CopyOptions.LocalDevice)`，可让一整块诊断文本长按选择并复制到设备剪贴板。

@@ -34,8 +34,8 @@
 - **状态：** completed
 
 ### 阶段 P2：VPN/TUN/process-protect PoC
-- [ ] 实现 `VpnExtensionAbility`
-- [ ] 在 Go 启动前调用 `protectProcessNet()`
+- [x] 实现 `VpnExtensionAbility`
+- [x] 在 Go 启动前调用 `protectProcessNet()`
 - [ ] 验证 TUN FD、`dup()` 所有权、同进程和网络切换
 - **状态：** in_progress
 
@@ -97,6 +97,7 @@
 | P2 真机只显示 `IDLE sameProcess=N/A` | 1 | 分离 UI 启动结果、Extension 生命周期事件和 Native 状态，并比较两侧 PID 后再判断根因 |
 | CommonEvent `parameters` 触发 ArkTS `no-any-unknown` | 1 | 改用显式 string 类型的 `data` 字段传递 `status|pid`，不关闭严格检查 |
 | VPN Extension 点击后因读取 `null.code` 闪退 | 1 | CommonEvent 成功回调的 error 实际为 null；所有回调改为可选链，并由独立 VPN 进程随事件上报其 Native 状态 |
+| Stop 只上报 `ON_DESTROY`，未出现 `dupOwnership=PASS` | 1 | 不再从 UI 直接销毁 Extension；先跨进程请求 Extension 完成 TUN 销毁与 fd 所有权校验，收到 `STOPPED` 后再停止 Extension |
 
 ## 备注
 - 外部资料只写入 `findings.md`。

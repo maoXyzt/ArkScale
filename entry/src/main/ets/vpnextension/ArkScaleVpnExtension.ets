@@ -3,18 +3,52 @@ import { VpnExtensionAbility, vpnExtension } from '@kit.NetworkKit';
 import bridge from 'libarkscale_bridge.so';
 
 const VPN_PROBE_EVENT = 'com.arkscale.client.VPN_PROBE_STATUS';
+const VPN_PROBE_COMMAND_EVENT = 'com.arkscale.client.VPN_PROBE_COMMAND';
 
 export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   private connection?: vpnExtension.VpnConnection;
+  private commandSubscriber?: commonEventManager.CommonEventSubscriber;
+  private stopping: boolean = false;
+  private stopCompleted: boolean = false;
 
   onCreate(): void {
-    this.publishStatus('ON_CREATE');
-    this.startProbe();
+    this.initializeProbe();
   }
 
   onDestroy(): void {
-    this.publishStatus('ON_DESTROY');
-    this.stopProbe();
+    if (this.commandSubscriber !== undefined) {
+      commonEventManager.unsubscribe(this.commandSubscriber);
+      this.commandSubscriber = undefined;
+    }
+    if (!this.stopCompleted && !this.stopping) {
+      this.stopping = true;
+      this.publishStatus('ON_DESTROY');
+      this.stopProbe();
+    }
+  }
+
+  private async initializeProbe(): Promise<void> {
+    try {
+      const subscriber = await commonEventManager.createSubscriber({ events: [VPN_PROBE_COMMAND_EVENT] });
+      this.commandSubscriber = subscriber;
+      commonEventManager.subscribe(subscriber,
+        (error: BusinessError, data: commonEventManager.CommonEventData) => {
+          if (error?.code) {
+            this.publishStatus(`COMMAND ERROR code=${error.code}`);
+            return;
+          }
+          if (data.data === 'STOP' && !this.stopping) {
+            this.stopping = true;
+            this.stopProbe();
+          }
+        });
+      this.publishStatus('ON_CREATE');
+      await this.startProbe();
+    } catch (error) {
+      const errorCode = (error as BusinessError).code ?? -1;
+      bridge.failVpnProbe(errorCode);
+      this.publishStatus(`COMMAND SUBSCRIBE FAIL code=${errorCode}`);
+    }
   }
 
   private async startProbe(): Promise<void> {
@@ -62,9 +96,11 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     const errorCode = await this.destroyConnection();
     if (errorCode === 0) {
       bridge.stopVpnProbe();
+      this.stopCompleted = true;
       this.publishStatus('STOPPED');
     } else {
       bridge.failVpnProbe(errorCode);
+      this.stopping = false;
       this.publishStatus(`STOP FAIL code=${errorCode}`);
     }
   }
