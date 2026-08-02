@@ -205,3 +205,6 @@
 - 错误记录：阶段提交前的 `git diff --cached --check` 将统一补丁文件中的 context 空行判为 trailing whitespace。改用等价的 zero-context (`--unified=0`) 补丁格式，既保持 `git apply` 可重放，也让仓库 whitespace 门禁有效。
 - 错误记录：zero-context 补丁首次反向校验未带 `git apply --unidiff-zero`，Git 按默认安全策略拒绝无 context hunk。补丁应用与反向检查统一增加该明确选项。
 - zero-context 补丁的反向检查、`fetch-deps.sh` 已应用识别、完整 staged whitespace 门禁均已通过；本地签名配置保持未暂存。
+- Linux 容器真实门禁通过：`OpenHarmony platform selection audit passed`，重建产物为 AArch64 shared object，`P0 engine verification passed`。P3 平台隔离子阶段完成。
+- P3 外部 TUN fd 适配已接入：socketpair 单包读写测试通过，OpenHarmony c-shared/ELF 门禁通过，bridge 与 HAP 均验证包含 `libarkscale_engine.so`。
+- 最新签名 HAP 已通过 HDC 覆盖安装到设备 `5NC0226529000198`；等待真机 Start/Stop 显示 `engineTun=PASS` 后完成该子阶段。

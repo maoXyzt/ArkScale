@@ -16,7 +16,9 @@ if [ "$(git -C "$ARKSCALE_ROOT/third_party/tailscale" rev-parse HEAD)" != "$ARKS
   exit 1
 fi
 
-mkdir -p "$ARKSCALE_ROOT/build/arm64-v8a"
+mkdir -p \
+  "$ARKSCALE_ROOT/build/arm64-v8a" \
+  "$ARKSCALE_ROOT/entry/libs/arm64-v8a"
 cd "$ARKSCALE_ROOT/engine"
 env \
   GOTOOLCHAIN=local \
@@ -36,3 +38,5 @@ env \
 
 cp "$ARKSCALE_ROOT/engine/include/arkscale_engine.h" \
   "$ARKSCALE_ROOT/build/arm64-v8a/arkscale_engine.h"
+cp "$ARKSCALE_ROOT/build/arm64-v8a/libarkscale_engine.so" \
+  "$ARKSCALE_ROOT/entry/libs/arm64-v8a/libarkscale_engine.so"

@@ -1,4 +1,5 @@
 #include "napi/native_api.h"
+#include "arkscale_engine.h"
 #include "arkscale_smoke.h"
 
 #include <fcntl.h>
@@ -10,6 +11,7 @@ static pthread_mutex_t vpnProbeMutex = PTHREAD_MUTEX_INITIALIZER;
 static int vpnProbeFd = -1;
 static pid_t vpnExtensionPid = -1;
 static bool vpnProcessProtected = false;
+static uint64_t vpnTunGeneration = 0;
 static char vpnProbeStatus[128] = "IDLE";
 
 static napi_value GetVersion(napi_env env, napi_callback_info)
@@ -79,6 +81,7 @@ static napi_value GetGoSmokeTicks(napi_env env, napi_callback_info)
 
 static napi_value BeginVpnProbe(napi_env env, napi_callback_info)
 {
+    arkscale_stop();
     pthread_mutex_lock(&vpnProbeMutex);
     if (vpnProbeFd >= 0) {
         close(vpnProbeFd);
@@ -118,20 +121,29 @@ static napi_value AttachVpnTun(napi_env env, napi_callback_info info)
     }
 
     int duplicatedFd = dup(tunFd);
-    bool valid = duplicatedFd >= 0 && fcntl(duplicatedFd, F_GETFD) >= 0;
+    int engineFd = dup(tunFd);
+    bool valid = duplicatedFd >= 0 && fcntl(duplicatedFd, F_GETFD) >= 0 &&
+        engineFd >= 0 && fcntl(engineFd, F_GETFD) >= 0;
+    if (valid && arkscale_set_tun(engineFd, ++vpnTunGeneration) != ARKSCALE_OK) {
+        close(engineFd);
+        valid = false;
+    }
     pthread_mutex_lock(&vpnProbeMutex);
     if (valid) {
         if (vpnProbeFd >= 0) {
             close(vpnProbeFd);
         }
         vpnProbeFd = duplicatedFd;
-        snprintf(vpnProbeStatus, sizeof(vpnProbeStatus), "READY protected=%s tunDup=PASS pid=%d",
+        snprintf(vpnProbeStatus, sizeof(vpnProbeStatus), "READY protected=%s tunDup=PASS engineTun=PASS pid=%d",
             vpnProcessProtected ? "PASS" : "FAIL", vpnExtensionPid);
     } else {
         if (duplicatedFd >= 0) {
             close(duplicatedFd);
         }
-        snprintf(vpnProbeStatus, sizeof(vpnProbeStatus), "FAIL tunDup");
+        if (engineFd >= 0 && fcntl(engineFd, F_GETFD) >= 0) {
+            close(engineFd);
+        }
+        snprintf(vpnProbeStatus, sizeof(vpnProbeStatus), "FAIL tunAttach");
     }
     pthread_mutex_unlock(&vpnProbeMutex);
 
@@ -162,17 +174,19 @@ static napi_value FailVpnProbe(napi_env env, napi_callback_info info)
 
 static napi_value StopVpnProbe(napi_env env, napi_callback_info)
 {
+    bool engineStopped = arkscale_stop() == ARKSCALE_OK;
     pthread_mutex_lock(&vpnProbeMutex);
     bool ownershipValid = vpnProbeFd >= 0 && fcntl(vpnProbeFd, F_GETFD) >= 0;
     if (vpnProbeFd >= 0) {
         close(vpnProbeFd);
         vpnProbeFd = -1;
     }
-    snprintf(vpnProbeStatus, sizeof(vpnProbeStatus), "STOPPED dupOwnership=%s", ownershipValid ? "PASS" : "N/A");
+    snprintf(vpnProbeStatus, sizeof(vpnProbeStatus), "STOPPED dupOwnership=%s engineTun=%s",
+        ownershipValid ? "PASS" : "N/A", engineStopped ? "PASS" : "FAIL");
     pthread_mutex_unlock(&vpnProbeMutex);
 
     napi_value value;
-    napi_get_boolean(env, ownershipValid, &value);
+    napi_get_boolean(env, ownershipValid && engineStopped, &value);
     return value;
 }
 

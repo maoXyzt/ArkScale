@@ -7,6 +7,7 @@ package main
 import "C"
 
 import (
+	"sync"
 	"unsafe"
 
 	_ "tailscale.com/ipn/ipnlocal"
@@ -14,9 +15,16 @@ import (
 )
 
 const (
+	resultOK              = 0
 	resultInvalidArgument = 1
 	resultNotImplemented  = 2
 )
+
+var engineState struct {
+	sync.Mutex
+	tun        *fdTUN
+	generation uint64
+}
 
 //export arkscale_start
 func arkscale_start(configJSON *C.char) C.int {
@@ -47,7 +55,20 @@ func arkscale_set_tun(dupFD C.int, generation C.uint64_t) C.int {
 	if dupFD < 0 || generation == 0 {
 		return resultInvalidArgument
 	}
-	return resultNotImplemented
+
+	engineState.Lock()
+	if uint64(generation) <= engineState.generation {
+		engineState.Unlock()
+		return resultInvalidArgument
+	}
+	old := engineState.tun
+	engineState.tun = newFDTUN(int(dupFD))
+	engineState.generation = uint64(generation)
+	engineState.Unlock()
+	if old != nil {
+		_ = old.Close()
+	}
+	return resultOK
 }
 
 //export arkscale_network_changed
@@ -55,7 +76,14 @@ func arkscale_network_changed() {}
 
 //export arkscale_stop
 func arkscale_stop() C.int {
-	return resultNotImplemented
+	engineState.Lock()
+	tun := engineState.tun
+	engineState.tun = nil
+	engineState.Unlock()
+	if tun != nil {
+		_ = tun.Close()
+	}
+	return resultOK
 }
 
 func main() {}

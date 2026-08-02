@@ -2,7 +2,10 @@ module github.com/arkscale/arkscale/engine
 
 go 1.24.0
 
-require tailscale.com v0.0.0
+require (
+	github.com/tailscale/wireguard-go v0.0.0-20250107165329-0b8b35511f19
+	tailscale.com v0.0.0
+)
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
@@ -48,7 +51,6 @@ require (
 	github.com/tailscale/netlink v1.1.1-0.20240822203006-4d49adab4de7 // indirect
 	github.com/tailscale/peercred v0.0.0-20250107143737-35a0c7bd7edc // indirect
 	github.com/tailscale/web-client-prebuilt v0.0.0-20250124233751-d4cd19a26976 // indirect
-	github.com/tailscale/wireguard-go v0.0.0-20250107165329-0b8b35511f19 // indirect
 	github.com/vishvananda/netns v0.0.4 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go4.org/mem v0.0.0-20240501181205-ae6ca9944745 // indirect
