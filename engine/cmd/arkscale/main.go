@@ -22,7 +22,7 @@ const (
 
 var engineState struct {
 	sync.Mutex
-	tun        *fdTUN
+	tun        *multiTUN
 	generation uint64
 }
 
@@ -61,13 +61,13 @@ func arkscale_set_tun(dupFD C.int, generation C.uint64_t) C.int {
 		engineState.Unlock()
 		return resultInvalidArgument
 	}
-	old := engineState.tun
-	engineState.tun = newFDTUN(int(dupFD))
-	engineState.generation = uint64(generation)
-	engineState.Unlock()
-	if old != nil {
-		_ = old.Close()
+	if engineState.tun == nil {
+		engineState.tun = newMultiTUN()
 	}
+	tun := engineState.tun
+	engineState.generation = uint64(generation)
+	tun.Add(newFDTUN(int(dupFD)))
+	engineState.Unlock()
 	return resultOK
 }
 
@@ -77,11 +77,10 @@ func arkscale_network_changed() {}
 //export arkscale_stop
 func arkscale_stop() C.int {
 	engineState.Lock()
+	defer engineState.Unlock()
 	tun := engineState.tun
-	engineState.tun = nil
-	engineState.Unlock()
 	if tun != nil {
-		_ = tun.Close()
+		tun.Shutdown()
 	}
 	return resultOK
 }
