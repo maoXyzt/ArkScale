@@ -42,6 +42,7 @@
 
 ### 阶段 P3：Tailscale backend
 - [x] 审计并隔离错误选择的 Linux 平台实现
+- [x] 将 Harmony TUN fd 注入 Go c-shared 引擎并通过真机启停门禁
 - [ ] 接入 userspace engine 与 LocalBackend
 - [ ] 实现动态路由、DNS、MTU 和 TUN 重建
 - [ ] 实现官方 Tailscale 交互式登录与状态持久化

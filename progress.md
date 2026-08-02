@@ -208,3 +208,8 @@
 - Linux 容器真实门禁通过：`OpenHarmony platform selection audit passed`，重建产物为 AArch64 shared object，`P0 engine verification passed`。P3 平台隔离子阶段完成。
 - P3 外部 TUN fd 适配已接入：socketpair 单包读写测试通过，OpenHarmony c-shared/ELF 门禁通过，bridge 与 HAP 均验证包含 `libarkscale_engine.so`。
 - 最新签名 HAP 已通过 HDC 覆盖安装到设备 `5NC0226529000198`；等待真机 Start/Stop 显示 `engineTun=PASS` 后完成该子阶段。
+- HDC 两次自动启动均被设备锁屏拒绝；不尝试绕过锁屏。等待用户解锁并点击 Start/Stop，同时已完成 pinned LocalBackend 最小构造与关闭顺序的源码追踪。
+- 同一设备锁屏门禁已连续三轮复现（HDC 10106102）；当前无法安全代替用户解锁、确认 VPN 授权并点击 Start/Stop，故在 TUN 真机结果返回前不进入 backend 实装。
+- 真机 Stop 已显示 `STOPPED dupOwnership=PASS engineTun=PASS sameProcess=PASS`（独立 VPN 进程）；仍需 Start 的 `READY ... engineTun=PASS` 证明 TUN fd 实际 attach 成功。
+- 真机 Start 已显示 `READY protected=PASS tunDup=PASS engineTun=PASS ... sameProcess=PASS`；结合 Stop 结果，P3 外部 Harmony TUN fd 适配子阶段完成。
+- 真机再次确认运行态为 `READY protected=PASS tunDup=PASS engineTun=PASS pid=16899 sameProcess=PASS`，默认网络为 `WIFI netId=118 switches=0`；该门禁结果稳定。

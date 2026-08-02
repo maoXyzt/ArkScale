@@ -148,3 +148,8 @@
 - 平台隔离补丁必须可重放且幂等；`fetch-deps.sh` 在确认 pinned commit 后用 `git apply --check` / `git apply --reverse --check` 应用。容器构建应在编译前运行 `go list` 审计实际选中的平台文件。
 - `build-engine.sh` 已集中定义 OpenHarmony 的 Go/CGO/CC/CXX/AR 环境；平台文件审计应复用相同的 `GOOS=openharmony GOARCH=arm64` 与 pinned SIG Go，不另造工具链入口。
 - `router_default.go` 已提供安全的 unsupported-OS 错误与空清理实现。让 OpenHarmony 选择它即可使意外调用 `router.New` 明确失败；正常引擎路径应显式注入 `router.CallbackRouter`。
+- P3 最小 backend 组装顺序已由 pinned 源码确认：创建 `tsd.System`、持久化 `StateStore`、`netmon.Monitor`、`tsdial.Dialer`、`router.CallbackRouter`，再用显式 `wgengine.Config{Tun, Router, DNS, NetMon, Dialer, SetSubsystem, HealthTracker, Metrics, ControlKnobs}` 构造 engine，最后 `ipnlocal.NewLocalBackend` 与 `Start`。
+- `wgengine.NewUserspaceEngine` 会包装并接管传入的 `tun.Device`，启动 WireGuard、router 和 netmon；其 `SetSubsystem` 会把 wrapper、MagicSock、DNS manager、Router、Dialer、NetMon 写入同一个 `tsd.System`。因此 engine 需要持有稳定的 `tun.Device`，不能直接替换其对象。
+- `router.CallbackRouter` 已合并 Router 与 DNS 配置，并通过 `SetBoth` 一次上送路由、DNS 与首次 MTU，正适合 Harmony VPN 的整包重配置模型；无需自建 router/dns 类型。
+- `LocalBackend` 硬依赖 System 中的 Engine、StateStore、Dialer（且 Dialer 已绑定 NetMon）和 MagicSock；交互登录通过 `SetNotifyCallback` 接收 `BrowseToURL`，然后调用 `StartLoginInteractive`，无需 localapi/ipnserver。
+- Tailscale Android `1.82.4`（最接近当前 core `1.82.5` 的官方 Android 标签）已提供稳定 `multiTUN`：engine 始终持有同一个设备，平台每次建好静态配置的新 TUN 后只替换底层 `tun.Device`。Harmony 应复用这一模式，不重启 backend。
