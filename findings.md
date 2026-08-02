@@ -76,6 +76,8 @@
 - SDK API 24 的 `Window.setWindowKeepScreenOn()` 自 API 11 起可用，适合 P1 前台 soak；旧的 `@system.brightness.setKeepScreenOn()` 已废弃，不采用。
 - 熄屏或进入后台可能挂起普通前台应用和 ArkTS timer。P1 不能只用 `Date.now()` 判定：测试期间保持主窗口亮屏，并要求 Go worker 的 100 ms ticker 至少累计 17000 次，才能把连续运行与墙上经过时间同时纳入 PASS。
 - 目标真机最终显示 `30 min soak: PASS (30m 0s)`，证明该设备上 SIG Go c-shared worker 在保持前台亮屏时通过 30 分钟墙上时间与 Go tick 联合门禁；P1 已完成。
+- 本机 API 24 SDK 类型定义再次确认：`startVpnExtensionAbility`、`VpnConnection.create/destroy` 自 API 11 可用，`protectProcessNet()` 自 API 22 可用且只保护调用后创建的当前进程 socket；P2 必须保持 protect-before-Go 的顺序。
+- `VpnConfig.addresses` 必填，`RouteInfo` 需要 interface/destination/gateway/hasGateway/isDefaultRoute；P2 使用显式、窄范围的测试网段，不能用空 routes，以免平台按地址族补成默认全隧道路由。
 
 ## 技术决策
 | 决策 | 理由 |

@@ -18,6 +18,9 @@ file "$ARKSCALE_SMOKE" | grep -E 'ELF 64-bit.*ARM aarch64' >/dev/null
 unzip -l "$ARKSCALE_HAP" | grep 'libs/arm64-v8a/libarkscale_bridge.so' >/dev/null
 unzip -l "$ARKSCALE_HAP" | grep 'libs/arm64-v8a/libarkscale_smoke.so' >/dev/null
 unzip -p "$ARKSCALE_HAP" module.json | grep '"bundleName":"com.arkscale.client"' >/dev/null
+unzip -p "$ARKSCALE_HAP" module.json | grep '"name":"ohos.permission.INTERNET"' >/dev/null
+unzip -p "$ARKSCALE_HAP" module.json | grep '"name":"ArkScaleVpnExtension"' >/dev/null
+unzip -p "$ARKSCALE_HAP" module.json | grep '"type":"vpn"' >/dev/null
 unzip -p "$ARKSCALE_HAP" pack.info | grep '"compatible":22' >/dev/null
 unzip -p "$ARKSCALE_HAP" pack.info | grep '"target":24' >/dev/null
 "$ARKSCALE_READELF" --dyn-syms "$ARKSCALE_BRIDGE" | grep 'RegisterArkScaleBridgeModule' >/dev/null

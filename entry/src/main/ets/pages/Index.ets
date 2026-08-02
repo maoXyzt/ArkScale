@@ -1,3 +1,5 @@
+import { BusinessError } from '@kit.BasicServicesKit';
+import { vpnExtension } from '@kit.NetworkKit';
 import bridge from 'libarkscale_bridge.so';
 
 @Entry
@@ -5,50 +7,54 @@ import bridge from 'libarkscale_bridge.so';
 struct Index {
   private goSmokePassed: boolean = bridge.runGoSmoke(1000);
   private lifecyclePassed: boolean = bridge.runGoLifecycle(100);
-  @State private soakSeconds: number = 0;
-  @State private soakStatus: string = 'STARTING';
-  private soakStartedAt: number = 0;
-  private soakTimer: number = -1;
+  @State private vpnStatus: string = 'IDLE';
+  private statusTimer: number = -1;
 
   aboutToAppear(): void {
-    if (!bridge.startGoSmoke()) {
-      this.soakStatus = 'FAIL';
-      return;
-    }
-    this.soakStatus = 'RUNNING';
-    this.soakStartedAt = Date.now();
-    this.soakTimer = setInterval(() => {
-      this.soakSeconds = Math.floor((Date.now() - this.soakStartedAt) / 1000);
-      if (this.soakSeconds >= 1800) {
-        clearInterval(this.soakTimer);
-        this.soakTimer = -1;
-        const stopped = bridge.stopGoSmoke();
-        const ticks = bridge.getGoSmokeTicks();
-        this.soakStatus = stopped && ticks >= 17000 ? 'PASS' : `FAIL (${ticks} Go ticks)`;
-      }
-    }, 1000);
+    this.statusTimer = setInterval(() => {
+      this.vpnStatus = bridge.getVpnProbeStatus();
+    }, 500);
   }
 
   aboutToDisappear(): void {
-    if (this.soakTimer !== -1) {
-      clearInterval(this.soakTimer);
-      this.soakTimer = -1;
-      if (!bridge.stopGoSmoke()) {
-        this.soakStatus = 'FAIL';
-      }
+    if (this.statusTimer !== -1) {
+      clearInterval(this.statusTimer);
+      this.statusTimer = -1;
+    }
+  }
+
+  private async startVpn(): Promise<void> {
+    this.vpnStatus = 'REQUESTING VPN PERMISSION';
+    try {
+      await vpnExtension.startVpnExtensionAbility({
+        bundleName: 'com.arkscale.client',
+        moduleName: 'entry',
+        abilityName: 'ArkScaleVpnExtension'
+      });
+    } catch (error) {
+      this.vpnStatus = `START FAILED: ${(error as BusinessError).code}`;
+    }
+  }
+
+  private async stopVpn(): Promise<void> {
+    try {
+      await vpnExtension.stopVpnExtensionAbility({
+        bundleName: 'com.arkscale.client',
+        moduleName: 'entry',
+        abilityName: 'ArkScaleVpnExtension'
+      });
+    } catch (error) {
+      this.vpnStatus = `STOP FAILED: ${(error as BusinessError).code}`;
     }
   }
 
   build() {
     Column({ space: 12 }) {
-      Text('ArkScale')
+      Text('ArkScale P2')
         .fontSize(28)
         .fontWeight(FontWeight.Bold)
       Text(bridge.getVersion())
         .fontSize(16)
-        .fontColor($r('app.color.secondary_text'))
-      Text('P0/P1 validation build')
-        .fontSize(14)
         .fontColor($r('app.color.secondary_text'))
       Text(this.goSmokePassed ? 'Go smoke: PASS' : 'Go smoke: FAIL')
         .fontSize(14)
@@ -56,9 +62,15 @@ struct Index {
       Text(this.lifecyclePassed ? '100 start/stop cycles: PASS' : '100 start/stop cycles: FAIL')
         .fontSize(14)
         .fontColor($r('app.color.secondary_text'))
-      Text(`30 min soak: ${this.soakStatus} (${Math.floor(this.soakSeconds / 60)}m ${this.soakSeconds % 60}s)`)
+      Text(`VPN probe: ${this.vpnStatus}`)
         .fontSize(14)
         .fontColor($r('app.color.secondary_text'))
+      Row({ space: 12 }) {
+        Button('Start VPN probe')
+          .onClick(() => this.startVpn())
+        Button('Stop VPN probe')
+          .onClick(() => this.stopVpn())
+      }
     }
     .width('100%')
     .height('100%')

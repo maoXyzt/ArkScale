@@ -72,6 +72,9 @@
   - `dev` 已形成三个阶段节点：API 22 文档门禁、可复现 P0 engine 工具链、P1 HarmonyOS Go runtime 探针；工作树提交范围不含签名材料和生成产物。
   - DevEco 恢复本机签名材料后，产品未关联 `signingConfig`，首次部署报 `9568320: no signature file`；本机补回 `signingConfig: default` 后生成 signed HAP，签名字段保持未提交。
   - 用户确认目标真机显示 `30 min soak: PASS (30m 0s)`；保持亮屏、墙上时间和 Go tick 数联合门禁通过，P1 完成并进入 P2。
+  - P2 第一小步已实现：声明三方 VPN Extension/INTERNET 权限，UI 启停系统 VPN 授权，Extension 严格按 protect-before-create 顺序创建单个 `/32` 测试 TUN，Native `dup()` 并上报同进程/保护/FD 状态。
+  - P2 首次本机构建成功并产出 signed HAP；ArkTS 对 `destroy()` 异常收口给出警告，已改为 helper 内返回错误码，保持停止路径无未处理 Promise。
+  - P2 重建无 ArkTS/C++ 警告且 HAP 基础校验通过；下一步把 VPN Extension 与 INTERNET 权限写入 HAP 回归门禁，再进行真机授权/FD 验证。
   - Hvigor 提示 entry module SemVer 警告，但 `0.1.0` 合法且当前不发布 ohpm 模块；不为无关发布路径扩展配置。
 - 创建/修改的文件：
   - `.gitignore`
@@ -121,6 +124,7 @@
 | P1 30 分钟门禁静态构建 | 定时 UI / start-stop N-API / 现有 smoke `.so` | ArkTS/C++/HAP 链路通过 | 签名 HAP 构建及校验通过；待重建 Go `.so` 后真机 | pass |
 | P1 防熄屏与 tick 门禁静态检查 | Window API / C ABI / Node-API / shell scripts | API 22+ 可编译且符号一致 | SDK 接口确认；C/C++/shell 静态检查通过 | pass |
 | P1 30 分钟真机持续运行 | 设备 `5NC0226529000198` / 保持前台亮屏 | 30 分钟且 Go tick 门槛通过 | 用户确认 `PASS (30m 0s)` | pass |
+| P2 VPN 平台探针本地构建 | VPN Extension / protect / `/32` TUN / Native dup | ArkTS/C++ 无诊断且 HAP 声明完整 | signed HAP 构建成功；HAP/Clang/ShellCheck 通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
