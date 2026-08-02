@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+: "${ARKSCALE_OHOS_NATIVE:?set ARKSCALE_OHOS_NATIVE to the Linux OHOS native SDK directory}"
+exec "$ARKSCALE_OHOS_NATIVE/llvm/bin/clang++" \
+  --target=aarch64-linux-ohos \
+  --sysroot="$ARKSCALE_OHOS_NATIVE/sysroot" \
+  -fPIC \
+  -D__MUSL__=1 \
+  "$@"

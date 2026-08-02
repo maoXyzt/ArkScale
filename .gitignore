@@ -1,0 +1,13 @@
+**/build/
+/third_party/
+/node_modules/
+**/oh_modules/
+/.cache/
+/.idea/
+**/.hvigor/
+**/.cxx/
+/entry/libs/
+*.p12
+*.p7b
+*.cer
+*.profile
