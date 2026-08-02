@@ -189,6 +189,13 @@ static napi_value GetVpnProbeStatus(napi_env env, napi_callback_info)
     return value;
 }
 
+static napi_value GetCurrentPid(napi_env env, napi_callback_info)
+{
+    napi_value value;
+    napi_create_int32(env, getpid(), &value);
+    return value;
+}
+
 EXTERN_C_START
 static napi_value Init(napi_env env, napi_value exports)
 {
@@ -205,6 +212,7 @@ static napi_value Init(napi_env env, napi_value exports)
         {"failVpnProbe", nullptr, FailVpnProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopVpnProbe", nullptr, StopVpnProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getVpnProbeStatus", nullptr, GetVpnProbeStatus, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getCurrentPid", nullptr, GetCurrentPid, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties);
     return exports;

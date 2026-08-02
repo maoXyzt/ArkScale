@@ -78,6 +78,7 @@
 - 目标真机最终显示 `30 min soak: PASS (30m 0s)`，证明该设备上 SIG Go c-shared worker 在保持前台亮屏时通过 30 分钟墙上时间与 Go tick 联合门禁；P1 已完成。
 - 本机 API 24 SDK 类型定义再次确认：`startVpnExtensionAbility`、`VpnConnection.create/destroy` 自 API 11 可用，`protectProcessNet()` 自 API 22 可用且只保护调用后创建的当前进程 socket；P2 必须保持 protect-before-Go 的顺序。
 - `VpnConfig.addresses` 必填，`RouteInfo` 需要 interface/destination/gateway/hasGateway/isDefaultRoute；P2 使用显式、窄范围的测试网段，不能用空 routes，以免平台按地址族补成默认全隧道路由。
+- P2 首次真机 UI 只见 `IDLE sameProcess=N/A`，现有单字段轮询会覆盖 `startVpnExtensionAbility` 的结果，且 Native 全局变量不能作为跨 ArkTS runtime 的唯一诊断通道；使用应用内 common event 单向上报 Extension 阶段/PID，可同时区分未启动、API 失败和 Native 实例隔离。
 
 ## 技术决策
 | 决策 | 理由 |

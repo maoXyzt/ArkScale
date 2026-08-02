@@ -1,18 +1,25 @@
-import { BusinessError } from '@kit.BasicServicesKit';
+import { BusinessError, commonEventManager } from '@kit.BasicServicesKit';
 import { vpnExtension } from '@kit.NetworkKit';
 import bridge from 'libarkscale_bridge.so';
+
+const VPN_PROBE_EVENT = 'com.arkscale.client.VPN_PROBE_STATUS';
 
 @Entry
 @Component
 struct Index {
   private goSmokePassed: boolean = bridge.runGoSmoke(1000);
   private lifecyclePassed: boolean = bridge.runGoLifecycle(100);
-  @State private vpnStatus: string = 'IDLE';
+  private uiPid: number = bridge.getCurrentPid();
+  @State private controlStatus: string = 'NOT REQUESTED';
+  @State private extensionStatus: string = 'NO EVENT';
+  @State private nativeStatus: string = 'IDLE';
   private statusTimer: number = -1;
+  private subscriber?: commonEventManager.CommonEventSubscriber;
 
   aboutToAppear(): void {
+    this.subscribeVpnEvents();
     this.statusTimer = setInterval(() => {
-      this.vpnStatus = bridge.getVpnProbeStatus();
+      this.nativeStatus = bridge.getVpnProbeStatus();
     }, 500);
   }
 
@@ -21,30 +28,60 @@ struct Index {
       clearInterval(this.statusTimer);
       this.statusTimer = -1;
     }
+    if (this.subscriber !== undefined) {
+      commonEventManager.unsubscribe(this.subscriber);
+      this.subscriber = undefined;
+    }
+  }
+
+  private async subscribeVpnEvents(): Promise<void> {
+    try {
+      const subscriber = await commonEventManager.createSubscriber({ events: [VPN_PROBE_EVENT] });
+      this.subscriber = subscriber;
+      commonEventManager.subscribe(subscriber,
+        (error: BusinessError, data: commonEventManager.CommonEventData) => {
+          if (error.code) {
+            this.extensionStatus = `EVENT ERROR code=${error.code}`;
+            return;
+          }
+          const payload = data.data;
+          if (payload !== undefined) {
+            const parts = payload.split('|');
+            const status = parts[0];
+            const extensionPid = Number(parts[1]);
+            this.extensionStatus = `${status} pid=${extensionPid} sameProcess=${extensionPid === this.uiPid ? 'PASS' : 'FAIL'}`;
+          }
+        });
+    } catch (error) {
+      this.extensionStatus = `SUBSCRIBE FAILED code=${(error as BusinessError).code}`;
+    }
   }
 
   private async startVpn(): Promise<void> {
-    this.vpnStatus = 'REQUESTING VPN PERMISSION';
+    this.controlStatus = 'REQUESTING';
     try {
       await vpnExtension.startVpnExtensionAbility({
         bundleName: 'com.arkscale.client',
         moduleName: 'entry',
         abilityName: 'ArkScaleVpnExtension'
       });
+      this.controlStatus = 'START REQUESTED';
     } catch (error) {
-      this.vpnStatus = `START FAILED: ${(error as BusinessError).code}`;
+      this.controlStatus = `START FAILED code=${(error as BusinessError).code}`;
     }
   }
 
   private async stopVpn(): Promise<void> {
+    this.controlStatus = 'STOPPING';
     try {
       await vpnExtension.stopVpnExtensionAbility({
         bundleName: 'com.arkscale.client',
         moduleName: 'entry',
         abilityName: 'ArkScaleVpnExtension'
       });
+      this.controlStatus = 'STOP REQUESTED';
     } catch (error) {
-      this.vpnStatus = `STOP FAILED: ${(error as BusinessError).code}`;
+      this.controlStatus = `STOP FAILED code=${(error as BusinessError).code}`;
     }
   }
 
@@ -62,7 +99,13 @@ struct Index {
       Text(this.lifecyclePassed ? '100 start/stop cycles: PASS' : '100 start/stop cycles: FAIL')
         .fontSize(14)
         .fontColor($r('app.color.secondary_text'))
-      Text(`VPN probe: ${this.vpnStatus}`)
+      Text(`Control: ${this.controlStatus}`)
+        .fontSize(14)
+        .fontColor($r('app.color.secondary_text'))
+      Text(`Extension: ${this.extensionStatus}`)
+        .fontSize(14)
+        .fontColor($r('app.color.secondary_text'))
+      Text(`Native: ${this.nativeStatus}`)
         .fontSize(14)
         .fontColor($r('app.color.secondary_text'))
       Row({ space: 12 }) {

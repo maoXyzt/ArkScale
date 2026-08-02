@@ -10,3 +10,4 @@ export const attachVpnTun: (tunFd: number) => boolean;
 export const failVpnProbe: (errorCode: number) => boolean;
 export const stopVpnProbe: () => boolean;
 export const getVpnProbeStatus: () => string;
+export const getCurrentPid: () => number;

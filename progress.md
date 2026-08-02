@@ -75,6 +75,10 @@
   - P2 第一小步已实现：声明三方 VPN Extension/INTERNET 权限，UI 启停系统 VPN 授权，Extension 严格按 protect-before-create 顺序创建单个 `/32` 测试 TUN，Native `dup()` 并上报同进程/保护/FD 状态。
   - P2 首次本机构建成功并产出 signed HAP；ArkTS 对 `destroy()` 异常收口给出警告，已改为 helper 内返回错误码，保持停止路径无未处理 Promise。
   - P2 重建无 ArkTS/C++ 警告且 HAP 基础校验通过；下一步把 VPN Extension 与 INTERNET 权限写入 HAP 回归门禁，再进行真机授权/FD 验证。
+  - P2 首次真机反馈为 `VPN probe: IDLE sameProcess=N/A`，门禁未通过；当前 UI 的 500 ms Native 状态轮询会覆盖启动请求结果，无法区分 Extension 未启动与 Native 实例不共享，先补分层状态/PID 诊断再复验。
+  - P2 诊断 UI 现分别显示 control、Extension common event 和 Native 状态；Extension 每个生命周期阶段上报自身 PID，UI 同时显示 PID 比较，单次真机复验可区分启动失败、生命周期未进入、跨进程和 Native 实例隔离。
+  - 首次诊断构建被 ArkTS `no-any-unknown` 拒绝，因为 CommonEvent `parameters` 类型为 `any`；改用显式 string 类型的 `data` 传递 `status|pid`，保持严格类型门禁。
+  - P2 分层诊断版 signed HAP 已无警告构建，HAP 验证通过；等待真机回传 Control/Extension/Native 三行以完成根因判定。
   - Hvigor 提示 entry module SemVer 警告，但 `0.1.0` 合法且当前不发布 ohpm 模块；不为无关发布路径扩展配置。
 - 创建/修改的文件：
   - `.gitignore`

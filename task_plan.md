@@ -94,6 +94,8 @@
 | 自动检查 HDC 设备时无法连接本机 daemon | 2 | 沙箱内返回 `Connect server failed`，受控提权被策略拒绝；不绕过，由用户终端列出设备 |
 | 本机自动读取 `hdc help` 仍等待 daemon | 1 | 不重复调用；设备已由用户 `list targets` 确认，后续真机操作由 DevEco/用户终端执行 |
 | 自动创建 `dev` 分支时 `.git/HEAD.lock` 被沙箱拒绝 | 2 | 不绕过 Git 元数据权限；等待用户在本机终端执行 `git switch -c dev` |
+| P2 真机只显示 `IDLE sameProcess=N/A` | 1 | 分离 UI 启动结果、Extension 生命周期事件和 Native 状态，并比较两侧 PID 后再判断根因 |
+| CommonEvent `parameters` 触发 ArkTS `no-any-unknown` | 1 | 改用显式 string 类型的 `data` 字段传递 `status|pid`，不关闭严格检查 |
 
 ## 备注
 - 外部资料只写入 `findings.md`。
