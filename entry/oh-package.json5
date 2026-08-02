@@ -1,0 +1,8 @@
+{
+  "name": "entry",
+  "version": "0.1.0",
+  "description": "ArkScale entry module",
+  "dependencies": {
+    "libarkscale_bridge.so": "file:./src/main/cpp/types/libarkscale_bridge"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "ArkScale client"
+    },
+    {
+      "name": "entry_ability_desc",
+      "value": "ArkScale entry ability"
+    },
+    {
+      "name": "entry_ability_label",
+      "value": "ArkScale"
+    }
+  ]
+}
