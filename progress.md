@@ -148,6 +148,11 @@
 | P4 peer 探针修复前 | Mate X7 / `100.127.64.12` | 在明确 deadline 内返回结果 | DERP 恢复后仍超时，WireGuard `tx=0`、无握手 | red |
 | P4 peer TSMP 与 DERP | Mate X7 / alpine `100.127.64.12` / DERP 900 | TSMP 成功并报告实际路径 | `PASS alpine 77.3ms derp myderp` | pass |
 | P4 peer 探针停止回归 | peer PASS 后 Stop | 生命周期正常停止且 fd 门禁保持通过 | `STOPPED dupOwnership=PASS engineTun=PASS` | pass |
+| P4 MagicDNS | Mate X7 / peer 完整 DNS 名称 | Quad100 返回 peer 的 Tailscale 地址 | peer A 记录解析通过 | pass |
+| P4 原生 TCP IPv4 | Mate X7 / peer SSH | Harmony `TCPSocket` 经系统 VPN 连接 peer | TCP 22 通过 | pass |
+| P4 公网直连 | Mate X7 / alpine | Disco 报告实际 UDP direct 路径 | direct endpoint 通过；公网地址不入库 | pass |
+| P4 IPv6 修复前 | Go/NetManager 均含 ULA 地址和路由 | Harmony 原生 TCP 可连接 peer IPv6 | `2301101` / `ENETUNREACH` | red |
+| P4 IPv6 干净构建 | Mate X7 / peer ULA / DERP | 无 source bind、无诊断代码，TSMP 与 TCP 均通过 | peer TSMP 经 DERP；原生 TCP 22 通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -183,10 +188,11 @@
 | 2026-08-03 | P2 Stop 在 `onDestroy` 后未上报 `dupOwnership=PASS` | 1 | 改成 Extension 内先完成 destroy/dup 校验并发布 STOPPED，UI 再调用 stop ability |
 | 2026-08-03 | P4 peer 探针和 Stop 一起长期挂起 | 1 | 不依赖上游同步 `Ping` 自行遵守 context；异步执行并在调用侧按 5 秒 deadline 返回 |
 | 2026-08-03 | DERP 已恢复但 TSMP 无握手且 `tx=0` | 1 | 对照 pinned 官方启动顺序，补齐 `sys.Tun.Get().Start()` 并加入构建门禁 |
+| 2026-08-04 | Go 与系统均有 IPv6 配置，但原生 TCP 返回 `2301101` | 1 | 显式设置 IPv6 address family，并把 `hasGateway=false` 路由的 next-hop 从 `::` 改为空字符串 |
 
 ## 当前诊断门禁
 - P0 已完成；实现不含 Tailscale 的最小 Go c-shared library，并接入现有 Node-API/HAP。
-- P0/P1/P2/P3 已完成；P4 的 peer TSMP 与自建 DERP 已通过，继续验证 TCP、直连、MagicDNS、IPv4/IPv6 和配置变化。
+- P0/P1/P2/P3 已完成；P4 的 peer TSMP、DERP/直连、MagicDNS、IPv4/IPv6 TCP 与 Wi-Fi/蜂窝切换均已通过，继续验证控制面配置变化。
 
 ## 当前外部输入
 - 无；下一步输入均在固定的 Tailscale v1.82.5 checkout 中。
@@ -195,7 +201,7 @@
 | 问题 | 答案 |
 |------|------|
 | 我在哪里？ | 阶段 P4：端到端网络 |
-| 我要去哪里？ | 验证 peer、DERP/直连、MagicDNS、IPv4/IPv6 与控制面配置变化 |
+| 我要去哪里？ | 验证控制面路由/DNS 配置变化后的 TUN 重建 |
 | 目标是什么？ | API 22+ ArkScale 最小客户端 |
 | 我学到了什么？ | 见 `findings.md` |
 | 我做了什么？ | 见上方记录 |
@@ -225,3 +231,6 @@
 - 900 不可用时探针按预期失败；恢复后 Disco 显示 `derp myderp`，但最初 TSMP 仍无握手且发送计数为零。
 - 根因是 backend 构造后遗漏 `sys.Tun.Get().Start()`，Tailscale wrapper 因而一直阻塞在 `awaitStart()`；按 pinned `tailscaled`/`tsnet` 启动顺序补齐该调用并加入静态回归门禁。
 - 修复后的 Mate X7 显示 `Peer: PASS alpine 77.3ms derp myderp`；停止后再观察状态也保持 `STOPPED dupOwnership=PASS engineTun=PASS`，peer TSMP 与自建 DERP 900 子门禁完成。
+- 后续真机门禁已补齐公网 UDP 直连、MagicDNS、Harmony 原生 IPv4 TCP；敏感公网 endpoint 不入库。
+- IPv6 诊断确认物理公网 IPv6 不是前提，overlay 可经 IPv4/DERP 承载；失败码 `2301101` 是本机 `ENETUNREACH`。
+- 根因是无网关 IPv6 路由仍传入 `::` next-hop；改为空字符串并显式设置 socket family 后，清理 source bind 和全部临时诊断的最终 HAP 同时通过 IPv6 TSMP 与原生 TCP 22。

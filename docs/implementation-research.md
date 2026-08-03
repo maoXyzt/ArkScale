@@ -177,7 +177,7 @@ const config: vpnExtension.VpnConfig = {
       prefixLength: route.prefixLength
     },
     gateway: {
-      address: route.family === 1 ? '0.0.0.0' : '::',
+      address: route.family === 1 ? '0.0.0.0' : '',
       family: route.family
     },
     hasGateway: false,
@@ -190,6 +190,8 @@ const config: vpnExtension.VpnConfig = {
   isBlocking: false
 };
 ```
+
+Mate X7 真机进一步确认：`hasGateway=false` 时若仍给 IPv6 `gateway.address` 传 `::`，系统会把它作为 next-hop 并使 Tailscale ULA 连接返回 `ENETUNREACH`；空字符串才与“无网关”语义一致。`NetAddress.family` 省略时默认 IPv4，IPv6 socket 也必须显式传 `2`。
 
 平台源码的[网络链路配置实现](https://gitee.com/openharmony/communication_netmanager_ext/blob/0f8c2ef2f0e1fb1a409f3613096948e21da3e26b/services/vpnmanager/src/net_vpn_impl.cpp#L292)还有一个容易踩坑的行为：当 `routes` 省略或为空时，系统会根据 `isIPv4Accepted` / `isIPv6Accepted` 自动生成默认路由。也就是说，空数组实际可能形成全隧道；普通 tailnet 模式必须传入从 backend 计算出的显式路由。
 

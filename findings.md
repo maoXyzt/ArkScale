@@ -163,4 +163,8 @@
 - LocalBackend 的 TSMP 可验证到 peer 的 WireGuard/IP 数据面，Disco 可独立报告直连 endpoint 或 DERP region；两者组合足以验证当前路径而不假设 peer 开放某个 TCP 端口。
 - pinned Tailscale 的 `LocalBackend.Ping` 会在进入自身 context select 前同步调用 engine Ping；调用侧需设置独立 deadline，避免异常网络状态阻塞整个 VPN 停止流程。
 - `wgengine.NewUserspaceEngine` 构造 wrapper 后不会替平台自动启动外部 TUN；官方 `tailscaled` 和 `tsnet` 都会调用 `sys.Tun.Get().Start()`。遗漏该调用时 Disco/control 可用，但 `tstun.Wrapper.Read()` 会阻塞在 `awaitStart()`，表现为 TSMP 无握手且发送计数为零。
-- Mate X7 到 alpine `100.127.64.12` 的 TSMP 最终为 `PASS 77.3ms`，Disco 路径为 `derp myderp`；结合用户确认 region 900 已恢复，可确认自建 DERP 900 承载的数据路径可用。该结果不证明直连、TCP、MagicDNS 或 IPv6。
+- Mate X7 到 alpine `100.127.64.12` 的 TSMP 最终为 `PASS 77.3ms`，Disco 路径为 `derp myderp`；结合用户确认 region 900 已恢复，可确认自建 DERP 900 承载的数据路径可用。该次结果单独不证明直连、TCP、MagicDNS 或 IPv6；后续门禁已分别补齐。
+- 物理网络没有公网 IPv6 不阻止 Tailscale ULA：peer 到手机的 IPv4/IPv6 TSMP 均可经 DERP 往返，最终干净构建也同时通过 IPv6 TSMP 与 Harmony 原生 TCP。
+- Go 配置与 Harmony NetManager 属性都包含 IPv6 地址和路由；`ifconfig` 未显示、`isIPv6LinkValid=false` 不能据此判断 VPN ULA 路由缺失，后者面向可用的全局/默认 IPv6 链路。
+- Harmony `NetAddress.family` 省略时默认 IPv4，IPv6 TCP 目标必须显式设为 `2`。连接返回的 `2301101` 对应本机 `ENETUNREACH`，不是 peer 或 DERP 超时。
+- IPv6 路由的根因是 `hasGateway=false` 时仍传入非空 `gateway.address='::'`；目标系统会继续把它当作 next-hop。改为空字符串后无需显式 source bind，IPv6 TSMP 与 TCP 均通过。

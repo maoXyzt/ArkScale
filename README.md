@@ -2,7 +2,7 @@
 
 ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自用的 Tailscale 全设备 VPN 客户端。
 
-> 当前仓库已完成 P0–P3，并在 P4 通过 peer TSMP、自建 DERP、可观测直连、peer TCP 和 MagicDNS 真机门禁；IPv6 仍待验证。
+> 当前仓库已完成 P0–P3，并在 P4 通过 peer TSMP、自建 DERP、可观测直连、IPv4/IPv6 peer TCP 和 MagicDNS 真机门禁。
 
 ## 当前判断
 
@@ -10,10 +10,10 @@ ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自�
 
 | 层级 | 已确认 | 尚未确认 |
 | --- | --- | --- |
-| HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建、peer TSMP、DERP/直连、peer TCP、MagicDNS 和 Wi-Fi/蜂窝切换门禁。 | 控制面配置变化后的重建和长期后台行为。 |
-| Go | OpenHarmony-SIG Go 1.24 的 AArch64 `c-shared` 已通过加载、100 次启停、30 分钟 soak，并运行 Tailscale userspace engine 与 Quad100 netstack；peer TSMP 已分别经 DERP 和直连往返，TCP 和 MagicDNS A 记录也已实际往返。 | IPv6 与长时间资源稳定性。 |
+| HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建、peer TSMP、DERP/直连、IPv4/IPv6 peer TCP、MagicDNS 和 Wi-Fi/蜂窝切换门禁。 | 控制面配置变化后的重建和长期后台行为。 |
+| Go | OpenHarmony-SIG Go 1.24 的 AArch64 `c-shared` 已通过加载、100 次启停、30 分钟 soak，并运行 Tailscale userspace engine 与 Quad100 netstack；IPv4/IPv6 peer TSMP、TCP 和 MagicDNS A 记录均已实际往返。 | 长时间资源稳定性。 |
 | 相邻项目 | ClashBox 公开实现了 HarmonyOS NEXT 上的 Go `.so`、VPN Ability、TUN FD 与逐 socket `protect`，并提供 HAP Release。 | ClashBox 不是 Tailscale，不能证明 WireGuard、DERP、MagicDNS 和 Tailscale 控制面可用。 |
-| Tailscale | LocalBackend 已在真机完成交互式登录、`Running`、动态 `router.Config`/`dns.OSConfig`、重启免登录，并通过自建 DERP 与公网 UDP 直连到达在线 peer；系统 VPN 内的原生 TCP socket 和 MagicDNS 均已到达 peer。 | IPv6 与异常恢复。 |
+| Tailscale | LocalBackend 已在真机完成交互式登录、`Running`、动态 `router.Config`/`dns.OSConfig`、重启免登录，并通过自建 DERP 与公网 UDP 直连到达在线 peer；系统 VPN 内的原生 TCP socket 已通过 IPv4/IPv6 到达 peer，MagicDNS 也已通过。 | 异常恢复。 |
 
 ## 已纠正的关键假设
 
@@ -75,7 +75,9 @@ P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测�
 
 输入 peer 的 Tailscale IP 并执行 `Probe peer` 后，页面会自动填入控制面下发的完整 DNS 名称。`Resolve MagicDNS` 必须通过 VPN 的 `100.100.100.100` 解析到该 peer 的预期 Tailscale IP；该门禁已于 2026-08-03 在 Mate X7 上通过，设备与 tailnet 标识不入库。
 
-`Probe TCP 22` 使用 Harmony 原生 `TCPSocket` 从 UI 进程连接 peer，不借用 Go backend 的内部 dial；该门禁已在同一真机连接到 peer 的 SSH 端口。
+`Probe TCP 22` 使用 Harmony 原生 `TCPSocket` 从 UI 进程连接 peer，不借用 Go backend 的内部 dial；IPv4 和 Tailscale ULA IPv6 门禁均已在同一真机连接到 peer 的 SSH 端口。即使物理网络没有公网 IPv6，Tailscale IPv6 仍可由 IPv4/DERP 承载。
+
+HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须显式使用 family `2`。对于 `hasGateway=false` 的 IPv6 VPN 路由，ArkScale 将 `gateway.address` 留空；传入 `::` 会被目标系统当作实际 next-hop，导致本机 `ENETUNREACH`。
 
 `Probe peer` 的 Disco 结果已在同一真机显示公网 UDP `direct` 路径。验证时手机侧虽然是目的地址相关 NAT 映射且没有 UPnP/NAT-PMP/PCP，仍成功与具备稳定 UDP 映射的 peer 建立直连；公网地址和端口不入库。
 
@@ -108,7 +110,7 @@ P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测�
 └── scripts/               # HAP、依赖、工具链和 engine 构建
 ```
 
-当前处于 P4：peer TSMP、自建 DERP、可观测直连、peer TCP 与 MagicDNS 已通过，下一步验证 IPv6 和配置变化；完整产品 UI 仍不在范围内。
+当前处于 P4：peer TSMP、自建 DERP、可观测直连、IPv4/IPv6 peer TCP 与 MagicDNS 已通过，下一步验证控制面配置变化；完整产品 UI 仍不在范围内。
 
 ## 安全
 

@@ -50,8 +50,9 @@
 
 ### 阶段 P4：端到端网络
 - [x] 验证 peer TSMP 与自建 DERP 数据路径
-- [ ] 验证 peer TCP、直连、MagicDNS、IPv4/IPv6
-- [ ] 验证 Wi-Fi/蜂窝切换和控制面配置变化
+- [x] 验证 peer TCP、直连、MagicDNS、IPv4/IPv6
+- [x] 验证 Wi-Fi/蜂窝切换
+- [ ] 验证控制面路由/DNS 配置变化
 - **状态：** in_progress
 
 ### 阶段 P5：稳定性与安全

@@ -210,7 +210,7 @@ const config: vpnExtension.VpnConfig = {
       prefixLength: route.prefixLength
     },
     gateway: {
-      address: route.family === 1 ? '0.0.0.0' : '::',
+      address: route.family === 1 ? '0.0.0.0' : '',
       family: route.family
     },
     hasGateway: false,
@@ -224,6 +224,8 @@ const config: vpnExtension.VpnConfig = {
   isBlocking: false
 };
 ```
+
+`hasGateway=false` 时 IPv6 的 `gateway.address` 必须留空。目标 HarmonyOS 版本会把非空的 `::` 继续作为 next-hop 交给底层路由，导致 Tailscale ULA 路由返回 `ENETUNREACH`。
 
 其中 HarmonyOS 的 `family` 取值为 IPv4 `1`、IPv6 `2`。实现时还要：
 
