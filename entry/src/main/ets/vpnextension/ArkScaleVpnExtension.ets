@@ -144,6 +144,7 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     if (errorCode === 0) {
       bridge.stopVpnProbe();
       this.stopCompleted = true;
+      this.publishEngineEvent(JSON.stringify({ schemaVersion: 1, type: 'state', state: 'stopped' }));
       this.publishStatus('STOPPED');
     } else {
       bridge.failVpnProbe(errorCode);
