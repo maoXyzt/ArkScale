@@ -320,7 +320,8 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
           address: { address: route.ip, family: route.family },
           prefixLength: route.prefixLength
         },
-        gateway: { address: route.family === 1 ? '0.0.0.0' : '::', family: route.family },
+        // OHOS may forward gateway.address even when hasGateway is false; an empty IPv6 next-hop avoids "via ::".
+        gateway: { address: route.family === 1 ? '0.0.0.0' : '', family: route.family },
         hasGateway: false,
         isDefaultRoute: route.prefixLength === 0
       })),

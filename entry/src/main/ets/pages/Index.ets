@@ -266,7 +266,7 @@ struct Index {
     const startedAt = Date.now();
     this.tcpStatus = `CONNECTING ${target}:22`;
     try {
-      await client.connect({ address: { address: target, port: 22 }, timeout: 5000 });
+      await client.connect({ address: { address: target, family: target.includes(':') ? 2 : 1, port: 22 }, timeout: 5000 });
       this.tcpStatus = `PASS ${target}:22 ${Date.now() - startedAt}ms`;
     } catch (error) {
       this.tcpStatus = `FAIL ${target}:22 code=${(error as BusinessError).code ?? -1}`;
