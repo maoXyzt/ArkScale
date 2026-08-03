@@ -45,6 +45,9 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   private configWork: Promise<void> = Promise.resolve();
   private pendingConfig?: EngineEvent;
   private configApplying: boolean = false;
+  private lastStatus: string = 'ON_CREATE';
+  private lastNetworkStatus?: string;
+  private lastEngineEvent?: string;
 
   onCreate(): void {
     this.initializeProbe();
@@ -78,6 +81,8 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
           if (data.data === 'STOP' && !this.stopping) {
             this.stopping = true;
             this.stopProbe();
+          } else if (data.data === 'STATUS') {
+            this.publishSnapshot();
           }
         });
       this.publishStatus('ON_CREATE');
@@ -347,6 +352,7 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   }
 
   private publishEngineEvent(eventJson: string): void {
+    this.lastEngineEvent = eventJson;
     commonEventManager.publish(ENGINE_EVENT, { bundleName: BUNDLE_NAME, data: eventJson }, (error: BusinessError) => {
       if (error?.code) {
         console.error(`Engine event publish failed: ${error.code}`);
@@ -355,6 +361,11 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   }
 
   private publishStatus(status: string): void {
+    if (status.startsWith('NETWORK ')) {
+      this.lastNetworkStatus = status;
+    } else {
+      this.lastStatus = status;
+    }
     commonEventManager.publish(VPN_PROBE_EVENT, {
       bundleName: BUNDLE_NAME,
       data: `${status}|${bridge.getCurrentPid()}|${bridge.getVpnProbeStatus()}`
@@ -363,5 +374,15 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
         console.error(`VPN probe event publish failed: ${error.code}`);
       }
     });
+  }
+
+  private publishSnapshot(): void {
+    this.publishStatus(this.lastStatus);
+    if (this.lastNetworkStatus !== undefined) {
+      this.publishStatus(this.lastNetworkStatus);
+    }
+    if (this.lastEngineEvent !== undefined) {
+      this.publishEngineEvent(this.lastEngineEvent);
+    }
   }
 }

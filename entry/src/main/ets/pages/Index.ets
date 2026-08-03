@@ -43,6 +43,10 @@ struct Index {
     }
   }
 
+  onPageShow(): void {
+    this.requestStatus();
+  }
+
   private async subscribeVpnEvents(): Promise<void> {
     try {
       const subscriber = await commonEventManager.createSubscriber({
@@ -82,9 +86,21 @@ struct Index {
             }
           }
         });
+      this.requestStatus();
     } catch (error) {
       this.extensionStatus = `SUBSCRIBE FAILED code=${(error as BusinessError).code}`;
     }
+  }
+
+  private requestStatus(): void {
+    commonEventManager.publish(VPN_PROBE_COMMAND_EVENT, {
+      bundleName: BUNDLE_NAME,
+      data: 'STATUS'
+    }, (error: BusinessError) => {
+      if (error?.code) {
+        this.extensionStatus = `STATUS REQUEST FAILED code=${error.code}`;
+      }
+    });
   }
 
   private async startVpn(): Promise<void> {
