@@ -1,6 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { BusinessError, commonEventManager } from '@kit.BasicServicesKit';
-import { connection, vpnExtension } from '@kit.NetworkKit';
+import { connection, socket, vpnExtension } from '@kit.NetworkKit';
 import bridge from 'libarkscale_bridge.so';
 
 const VPN_PROBE_EVENT = 'com.arkscale.client.VPN_PROBE_STATUS';
@@ -38,6 +38,7 @@ struct Index {
   @State private loginUrl: string = '';
   @State private peerTarget: string = '';
   @State private peerStatus: string = 'NOT TESTED';
+  @State private tcpStatus: string = 'NOT TESTED';
   @State private magicDnsTarget: string = '';
   @State private magicDnsStatus: string = 'NOT TESTED';
   private subscriber?: commonEventManager.CommonEventSubscriber;
@@ -178,6 +179,7 @@ struct Index {
       `Backend: ${this.engineStatus}\n` +
       `Network: ${this.networkStatus}\n` +
       `Peer: ${this.peerStatus}\n` +
+      `TCP: ${this.tcpStatus}\n` +
       `MagicDNS: ${this.magicDnsStatus}`;
   }
 
@@ -254,6 +256,27 @@ struct Index {
     }
   }
 
+  private async probeSshPort(): Promise<void> {
+    const target = this.peerTarget.trim();
+    if (target.length === 0) {
+      this.tcpStatus = 'INVALID TARGET';
+      return;
+    }
+    const client = socket.constructTCPSocketInstance();
+    const startedAt = Date.now();
+    this.tcpStatus = `CONNECTING ${target}:22`;
+    try {
+      await client.connect({ address: { address: target, port: 22 }, timeout: 5000 });
+      this.tcpStatus = `PASS ${target}:22 ${Date.now() - startedAt}ms`;
+    } catch (error) {
+      this.tcpStatus = `FAIL ${target}:22 code=${(error as BusinessError).code ?? -1}`;
+    }
+    try {
+      await client.close();
+    } catch (error) {
+    }
+  }
+
   build() {
     Column({ space: 12 }) {
       Text('ArkScale P4')
@@ -275,6 +298,8 @@ struct Index {
         .onChange((value: string) => this.peerTarget = value)
       Button('Probe peer')
         .onClick(() => this.probePeer())
+      Button('Probe TCP 22')
+        .onClick(() => this.probeSshPort())
       TextInput({ placeholder: 'MagicDNS hostname', text: this.magicDnsTarget })
         .width('80%')
         .onChange((value: string) => this.magicDnsTarget = value)
