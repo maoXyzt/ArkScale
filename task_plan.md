@@ -4,7 +4,7 @@
 按已确认的门禁顺序完成可复现的 Tailscale/OpenHarmony 编译、Go c-shared 真机、VPN/TUN、Tailscale backend 和端到端验证。
 
 ## 当前阶段
-阶段 P3（in_progress：Tailscale backend）
+阶段 P4（in_progress：端到端网络）
 
 ## 各阶段
 
@@ -43,15 +43,15 @@
 ### 阶段 P3：Tailscale backend
 - [x] 审计并隔离错误选择的 Linux 平台实现
 - [x] 将 Harmony TUN fd 注入 Go c-shared 引擎并通过真机启停门禁
-- [ ] 接入 userspace engine 与 LocalBackend
-- [ ] 实现动态路由、DNS、MTU 和 TUN 重建
-- [ ] 实现官方 Tailscale 交互式登录与状态持久化
-- **状态：** in_progress
+- [x] 接入 userspace engine 与 LocalBackend
+- [x] 实现动态路由、DNS、MTU 和 TUN 重建
+- [x] 实现官方 Tailscale 交互式登录与状态持久化
+- **状态：** completed
 
 ### 阶段 P4：端到端网络
 - [ ] 验证 peer、DERP/直连、MagicDNS、IPv4/IPv6
 - [ ] 验证 Wi-Fi/蜂窝切换和控制面配置变化
-- **状态：** pending
+- **状态：** in_progress
 
 ### 阶段 P5：稳定性与安全
 - [ ] 完成 24 小时、异常恢复和资源泄漏测试

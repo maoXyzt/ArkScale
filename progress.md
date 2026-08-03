@@ -181,8 +181,7 @@
 
 ## 当前诊断门禁
 - P0 已完成；实现不含 Tailscale 的最小 Go c-shared library，并接入现有 Node-API/HAP。
-- P0/P1/P2 已完成；当前进入 P3 Tailscale backend。
-- P3 先审计 OpenHarmony 构建中误选的 Linux netns/netmon/router 路径，再接入 backend。
+- P0/P1/P2/P3 已完成；当前进入 P4 端到端网络验证。
 
 ## 当前外部输入
 - 无；下一步输入均在固定的 Tailscale v1.82.5 checkout 中。
@@ -190,8 +189,8 @@
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 P3：Tailscale backend |
-| 我要去哪里？ | 先隔离错误选择的 Linux 平台路径，再接入 userspace engine 与 LocalBackend |
+| 我在哪里？ | 阶段 P4：端到端网络 |
+| 我要去哪里？ | 验证 peer、DERP/直连、MagicDNS、IPv4/IPv6 与控制面配置变化 |
 | 目标是什么？ | API 22+ ArkScale 最小客户端 |
 | 我学到了什么？ | 见 `findings.md` |
 | 我做了什么？ | 见上方记录 |
@@ -213,3 +212,6 @@
 - 真机 Stop 已显示 `STOPPED dupOwnership=PASS engineTun=PASS sameProcess=PASS`（独立 VPN 进程）；仍需 Start 的 `READY ... engineTun=PASS` 证明 TUN fd 实际 attach 成功。
 - 真机 Start 已显示 `READY protected=PASS tunDup=PASS engineTun=PASS ... sameProcess=PASS`；结合 Stop 结果，P3 外部 Harmony TUN fd 适配子阶段完成。
 - 真机再次确认运行态为 `READY protected=PASS tunDup=PASS engineTun=PASS pid=16899 sameProcess=PASS`，默认网络为 `WIFI netId=118 switches=0`；该门禁结果稳定。
+- P3 真机首次交互登录成功；浏览器返回后通过状态快照恢复为 `Backend: RUNNING`，Extension 动态应用 `configGen=1`，TUN fd 接管保持全部 PASS。
+- 停止、覆盖安装并再次启动后无需重新登录，直接恢复 `RUNNING` 与 `configGen=1`；应用私有目录中的 Tailscale 状态持久化门禁通过。
+- 停止态最终显示 `Backend: STOPPED`、`dupOwnership=PASS`、`engineTun=PASS`；P3 完成，下一步进入真实 peer/DERP/MagicDNS 数据面验证。

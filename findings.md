@@ -153,3 +153,6 @@
 - `router.CallbackRouter` 已合并 Router 与 DNS 配置，并通过 `SetBoth` 一次上送路由、DNS 与首次 MTU，正适合 Harmony VPN 的整包重配置模型；无需自建 router/dns 类型。
 - `LocalBackend` 硬依赖 System 中的 Engine、StateStore、Dialer（且 Dialer 已绑定 NetMon）和 MagicSock；交互登录通过 `SetNotifyCallback` 接收 `BrowseToURL`，然后调用 `StartLoginInteractive`，无需 localapi/ipnserver。
 - Tailscale Android `1.82.4`（最接近当前 core `1.82.5` 的官方 Android 标签）已提供稳定 `multiTUN`：engine 始终持有同一个设备，平台每次建好静态配置的新 TUN 后只替换底层 `tun.Device`。Harmony 应复用这一模式，不重启 backend。
+- Mate X7 真机已完成官方交互式登录，LocalBackend 进入 `Running`，`router.Config` / `dns.OSConfig` 触发 `configGen=1` 的 Harmony TUN 创建，Native 显示 `protected/tunDup/engineTun/sameProcess` 全部 PASS。
+- CommonEvent 不是状态存储；浏览器前台期间 UI 会错过瞬时 `RUNNING`/`READY`。Extension 需保留最小状态快照，并在页面重新显示时响应 `STATUS` 请求。
+- 覆盖安装后的首次重启无需再次登录，证明当前 FileStore 应用私有目录路径可持久化 Tailscale 身份状态；停止路径也已收敛为显式 `Backend: STOPPED` 快照。

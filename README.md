@@ -2,18 +2,18 @@
 
 ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自用的 Tailscale 全设备 VPN 客户端。
 
-> 当前仓库已完成 P0 和 P1：固定 Tailscale 依赖闭包已生成并校验 AArch64 engine，最小 Go `c-shared` HAP 已通过真机加载、100 次启停和 30 分钟持续运行；这还不是可用的 Tailscale 客户端。
+> 当前仓库已完成 P0–P3：AArch64 engine、Go `c-shared`、VPN/TUN、Tailscale LocalBackend、交互式登录、动态配置和状态持久化均已通过真机门禁；peer、DERP、MagicDNS 与 IPv4/IPv6 端到端数据面仍待 P4 验证。
 
 ## 当前判断
 
-这条路线值得做 PoC，但还不能宣称“已支持 HarmonyOS NEXT”。截至 2026-08-02，证据边界如下：
+这条路线已通过 backend PoC，但还不能宣称“已完整支持 HarmonyOS NEXT”。截至 2026-08-03，证据边界如下：
 
 | 层级 | 已确认 | 尚未确认 |
 | --- | --- | --- |
-| HarmonyOS VPN | API 11 起提供三方 `VpnExtensionAbility`、TUN FD 和 `create/destroy`；API 22 起提供进程级 `protectProcessNet()`。普通三方 VPN 基线是 `INTERNET` 权限加系统用户授权。 | 目标商业机型上的全部路由、DNS、重建与后台生命周期行为。 |
-| Go | OpenHarmony-SIG Go 1.24 分支支持 `GOOS=openharmony/arm64`、cgo 和 `c-shared`。 | 该 fork 与 Tailscale 完整依赖在目标 HarmonyOS NEXT 手机上的稳定性。 |
+| HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建和 Wi-Fi/蜂窝切换门禁。 | peer 数据面、控制面配置变化后的重建和长期后台行为。 |
+| Go | OpenHarmony-SIG Go 1.24 的 AArch64 `c-shared` 已通过加载、100 次启停、30 分钟 soak，并运行 Tailscale userspace engine。 | 完整 Tailscale 数据面与长时间资源稳定性。 |
 | 相邻项目 | ClashBox 公开实现了 HarmonyOS NEXT 上的 Go `.so`、VPN Ability、TUN FD 与逐 socket `protect`，并提供 HAP Release。 | ClashBox 不是 Tailscale，不能证明 WireGuard、DERP、MagicDNS 和 Tailscale 控制面可用。 |
-| Tailscale | Android 官方客户端提供了可参考的移动端 backend、可替换 TUN、路由/DNS 回调和 socket protect 架构。 | 没有找到可信的 HarmonyOS NEXT 完整 Tailscale 客户端或端到端日志。 |
+| Tailscale | LocalBackend 已在真机完成交互式登录、`Running`、动态 `router.Config`/`dns.OSConfig` 和重启免登录。 | DERP/直连、MagicDNS、peer TCP、IPv4/IPv6 与异常恢复。 |
 
 ## 已纠正的关键假设
 
@@ -43,7 +43,7 @@ pnpm run build:hap
 pnpm run verify:hap
 ```
 
-输出位于 `entry/build/default/outputs/default/entry-default-unsigned.hap`。当前没有签名配置，因此只生成未签名 HAP。
+未签名输出位于 `entry/build/default/outputs/default/entry-default-unsigned.hap`；配置本地 Signing Configs 后还会生成 `entry-default-signed.hap`。签名材料不得提交。
 
 P0 必须在 linux/amd64 容器中运行，并挂载已解压的 Linux OHOS SDK；目录下应存在 `native/llvm/bin/clang`：
 
@@ -56,7 +56,7 @@ P0 默认使用 `https://goproxy.cn,direct` 下载公开 Go modules；可通过�
 
 该命令会获取并校验固定的 Go/Tailscale commit，构建 SIG Go 工具链、编译 `c-shared` engine，并检查架构、动态依赖和 C ABI 导出符号。当前固定输入已经通过 P0。
 
-当前 `engine/cmd/arkscale` 只用于强制编译 `ipnlocal` 依赖闭包；除参数校验外，ABI 返回 `ARKSCALE_ERROR_NOT_IMPLEMENTED`。它不是可连接的 Tailscale backend。
+`engine/cmd/arkscale` 已组装显式的 portable NetMon、CallbackRouter、userspace engine 与 LocalBackend，并通过事件 ABI 向 VPN Extension 提供状态、登录 URL、地址、路由、DNS 和 MTU。
 
 P0 通过后，使用同一个 Linux SDK 和本地 builder 镜像构建 P1。该命令先生成不含 Tailscale 的 Go smoke library，再构建并校验 HAP：
 
@@ -71,7 +71,7 @@ P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测�
 
 30 分钟测试期间应用会请求主窗口保持亮屏。请保持 ArkScale 在前台，并建议连接电源；手动锁屏、切到后台或系统拒绝保持亮屏时，本次结果无效。最终 PASS 除了要求经过 30 分钟，还要求 Go worker 实际产生至少 17000 个 100 ms tick，避免仅凭 ArkTS 墙上时间误判。
 
-P2 页面提供 `Start VPN probe` / `Stop VPN probe`。首次启动应出现系统 VPN 授权；允许后预期依次显示 `Control: START REQUESTED`、`Extension: READY ... process=SEPARATE` 和 `Native in VPN process: READY protected=PASS tunDup=PASS`，停止后 Native 预期显示 `STOPPED dupOwnership=PASS`。HarmonyOS 会把 VPN Extension 放在应用的 `:vpn` 进程中，因此 Go engine 必须从 Extension 启动。当前探针只路由保留测试地址 `192.0.2.2/32`；尚未实现 packet echo 或接入 Tailscale。
+页面提供 `Start ArkScale` / `Stop ArkScale`。首次启动需完成系统 VPN 授权和 Tailscale 交互登录；成功后应显示 `Backend: RUNNING`、`Extension: READY configGen=...` 和 Native 的 `protected/tunDup/engineTun/sameProcess=PASS`。停止后应显示 `Backend: STOPPED` 与 `dupOwnership/engineTun=PASS`。
 
 ## 实施门禁
 
@@ -102,7 +102,7 @@ P2 页面提供 `Start VPN probe` / `Stop VPN probe`。首次启动应出现系�
 └── scripts/               # HAP、依赖、工具链和 engine 构建
 ```
 
-当前只推进“依赖闭包编译 + 最小 Go HAP + TUN/protect PoC”，不先开发完整 UI。
+当前进入 P4，只推进真实 peer、DERP/直连、MagicDNS、IPv4/IPv6 和配置变化验证；完整产品 UI 仍不在范围内。
 
 ## 安全
 
