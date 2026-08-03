@@ -22,6 +22,7 @@ void arkscale_free(void *ptr);
 int arkscale_set_tun(int dup_fd, uint64_t generation);
 int arkscale_clear_tun(void);
 void arkscale_network_changed(void);
+int arkscale_probe_peer(const char *target, char **json, size_t *len);
 int arkscale_stop(void);
 
 #ifdef __cplusplus

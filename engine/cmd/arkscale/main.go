@@ -140,6 +140,27 @@ func arkscale_network_changed() {
 	}
 }
 
+//export arkscale_probe_peer
+func arkscale_probe_peer(target *C.char, eventJSON **C.char, length *C.size_t) C.int {
+	if target == nil || eventJSON == nil || length == nil {
+		return resultInvalidArgument
+	}
+	*eventJSON = nil
+	*length = 0
+	engineState.Lock()
+	defer engineState.Unlock()
+	if engineState.backend == nil {
+		return resultNotImplemented
+	}
+	event, err := engineState.backend.probePeer(C.GoString(target))
+	if err != nil {
+		return resultInvalidArgument
+	}
+	*eventJSON = (*C.char)(C.CBytes(event))
+	*length = C.size_t(len(event))
+	return resultOK
+}
+
 //export arkscale_stop
 func arkscale_stop() C.int {
 	engineState.Lock()

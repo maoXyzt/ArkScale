@@ -15,3 +15,4 @@ export const startEngine: (configJson: string, listener: (eventJson: string) => 
 export const stopEngine: () => Promise<boolean>;
 export const networkChanged: () => void;
 export const suspendVpnTun: () => boolean;
+export const probePeer: (target: string) => Promise<string>;

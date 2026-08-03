@@ -15,6 +15,12 @@ interface EngineEvent {
   url?: string;
   severity?: string;
   message?: string;
+  target?: string;
+  ok?: boolean;
+  nodeName?: string;
+  path?: string;
+  latencyMs?: number;
+  error?: string;
 }
 
 @Entry
@@ -29,6 +35,8 @@ struct Index {
   @State private networkStatus: string = 'NOT REGISTERED';
   @State private engineStatus: string = 'NOT STARTED';
   @State private loginUrl: string = '';
+  @State private peerTarget: string = '';
+  @State private peerStatus: string = 'NOT TESTED';
   private subscriber?: commonEventManager.CommonEventSubscriber;
   private stopRequested: boolean = false;
 
@@ -165,7 +173,8 @@ struct Index {
       `Extension: ${this.extensionStatus}\n` +
       `Native in VPN process: ${this.vpnNativeStatus}\n` +
       `Backend: ${this.engineStatus}\n` +
-      `Network: ${this.networkStatus}`;
+      `Network: ${this.networkStatus}\n` +
+      `Peer: ${this.peerStatus}`;
   }
 
   private handleEngineEvent(eventJson: string): void {
@@ -184,6 +193,10 @@ struct Index {
         this.engineStatus = 'LOGIN REQUIRED';
       } else if (event.type === 'health' && event.severity !== undefined && event.message !== undefined) {
         this.engineStatus = `${event.severity.toUpperCase()}: ${event.message}`;
+      } else if (event.type === 'peer-probe' && event.target !== undefined && event.path !== undefined) {
+        this.peerStatus = event.ok ?
+          `PASS ${event.nodeName ?? event.target} ${(event.latencyMs ?? 0).toFixed(1)}ms ${event.path}` :
+          `FAIL ${event.nodeName ?? event.target} ${event.error ?? 'unknown error'} path=${event.path}`;
       }
     } catch (error) {
       this.engineStatus = `EVENT ERROR: ${(error as Error).message}`;
@@ -202,6 +215,23 @@ struct Index {
     }
   }
 
+  private probePeer(): void {
+    const target = this.peerTarget.trim();
+    if (target.length === 0 || target.length > 128) {
+      this.peerStatus = 'INVALID IP';
+      return;
+    }
+    this.peerStatus = 'PROBING';
+    commonEventManager.publish(VPN_PROBE_COMMAND_EVENT, {
+      bundleName: BUNDLE_NAME,
+      data: `PING|${target}`
+    }, (error: BusinessError) => {
+      if (error?.code) {
+        this.peerStatus = `REQUEST FAILED code=${error.code}`;
+      }
+    });
+  }
+
   build() {
     Column({ space: 12 }) {
       Text('ArkScale P3')
@@ -218,6 +248,11 @@ struct Index {
         Button('Open Tailscale login')
           .onClick(() => this.openLogin())
       }
+      TextInput({ placeholder: 'Peer Tailscale IP', text: this.peerTarget })
+        .width('80%')
+        .onChange((value: string) => this.peerTarget = value)
+      Button('Probe peer')
+        .onClick(() => this.probePeer())
       Row({ space: 12 }) {
         Button('Start ArkScale')
           .onClick(() => this.startVpn())

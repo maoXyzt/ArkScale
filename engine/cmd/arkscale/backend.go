@@ -10,15 +10,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"go4.org/netipx"
 	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnlocal"
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/ipn/store"
 	"tailscale.com/net/dns"
 	"tailscale.com/net/netmon"
 	"tailscale.com/net/tsdial"
 	"tailscale.com/paths"
+	"tailscale.com/tailcfg"
 	"tailscale.com/tsd"
 	"tailscale.com/types/logid"
 	"tailscale.com/wgengine"
@@ -78,6 +81,22 @@ type vpnConfigEvent struct {
 	Nameservers   []string      `json:"nameservers"`
 	SearchDomains []string      `json:"searchDomains"`
 	MTU           int           `json:"mtu"`
+}
+
+type peerProbeEvent struct {
+	SchemaVersion int     `json:"schemaVersion"`
+	Type          string  `json:"type"`
+	Target        string  `json:"target"`
+	OK            bool    `json:"ok"`
+	NodeName      string  `json:"nodeName,omitempty"`
+	Path          string  `json:"path"`
+	LatencyMS     float64 `json:"latencyMs,omitempty"`
+	Error         string  `json:"error,omitempty"`
+}
+
+type pingOutcome struct {
+	result *ipnstate.PingResult
+	err    error
 }
 
 func parseStartConfig(raw string) (startConfig, error) {
@@ -148,6 +167,7 @@ func newBackendRuntime(config startConfig, tunDevice *multiTUN) (_ *backendRunti
 		return nil, fmt.Errorf("create userspace engine: %w", err)
 	}
 	sys.Set(engine)
+	sys.Tun.Get().Start()
 
 	backend, err := ipnlocal.NewLocalBackend(logf, logid.PublicID{}, sys, 0)
 	if err != nil {
@@ -256,6 +276,92 @@ func (r *backendRuntime) setConfig(routeConfig *router.Config, dnsConfig *dns.OS
 		}
 	}
 	return r.emit(event)
+}
+
+func (r *backendRuntime) probePeer(target string) ([]byte, error) {
+	addr, err := netip.ParseAddr(target)
+	if err != nil {
+		return nil, err
+	}
+	event := peerProbeEvent{
+		SchemaVersion: eventSchemaVersion,
+		Type:          "peer-probe",
+		Target:        addr.String(),
+		Path:          "unknown",
+	}
+	netMap := r.backend.NetMap()
+	if netMap == nil {
+		event.Error = "no network map"
+		return json.Marshal(event)
+	}
+	peer, ok := netMap.PeerByTailscaleIP(addr)
+	if !ok {
+		event.Error = "no matching peer in network map"
+		return json.Marshal(event)
+	}
+	event.NodeName = peer.ComputedName()
+
+	ctx, cancel := context.WithTimeout(r.ctx, 5*time.Second)
+	tsmp, tsmpErr := r.pingWithDeadline(ctx, addr, tailcfg.PingTSMP)
+	cancel()
+	if tsmpErr != nil {
+		event.Error = tsmpErr.Error()
+	} else if tsmp == nil {
+		event.Error = "empty TSMP response"
+	} else if tsmp.Err != "" {
+		event.Error = tsmp.Err
+	} else {
+		event.OK = true
+		if tsmp.NodeName != "" {
+			event.NodeName = tsmp.NodeName
+		}
+		event.LatencyMS = tsmp.LatencySeconds * 1000
+	}
+
+	ctx, cancel = context.WithTimeout(r.ctx, 5*time.Second)
+	disco, discoErr := r.pingWithDeadline(ctx, addr, tailcfg.PingDisco)
+	cancel()
+	event.Path = peerPath(disco)
+	if discoErr != nil {
+		event.Path = "unavailable"
+	}
+	return json.Marshal(event)
+}
+
+func (r *backendRuntime) pingWithDeadline(ctx context.Context, addr netip.Addr,
+	pingType tailcfg.PingType) (*ipnstate.PingResult, error) {
+	result := make(chan pingOutcome, 1)
+	// ponytail: an upstream synchronous Ping can outlive this deadline; engine shutdown is the cleanup boundary.
+	go func() {
+		ping, err := r.backend.Ping(ctx, addr, pingType, 0)
+		result <- pingOutcome{result: ping, err: err}
+	}()
+	return awaitPing(ctx, result)
+}
+
+func awaitPing(ctx context.Context, result <-chan pingOutcome) (*ipnstate.PingResult, error) {
+	select {
+	case outcome := <-result:
+		return outcome.result, outcome.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func peerPath(result *ipnstate.PingResult) string {
+	if result == nil || result.Err != "" {
+		return "unknown"
+	}
+	if result.Endpoint != "" {
+		return "direct " + result.Endpoint
+	}
+	if result.DERPRegionCode != "" {
+		return "derp " + result.DERPRegionCode
+	}
+	if result.DERPRegionID != 0 {
+		return fmt.Sprintf("derp-%d", result.DERPRegionID)
+	}
+	return "unknown"
 }
 
 func subtractRoutes(routes, localRoutes []netip.Prefix) ([]netip.Prefix, error) {

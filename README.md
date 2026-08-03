@@ -2,7 +2,7 @@
 
 ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自用的 Tailscale 全设备 VPN 客户端。
 
-> 当前仓库已完成 P0–P3：AArch64 engine、Go `c-shared`、VPN/TUN、Tailscale LocalBackend、交互式登录、动态配置和状态持久化均已通过真机门禁；peer、DERP、MagicDNS 与 IPv4/IPv6 端到端数据面仍待 P4 验证。
+> 当前仓库已完成 P0–P3，并在 P4 通过 peer TSMP 与自建 DERP 数据路径真机门禁；peer TCP、直连、MagicDNS 与 IPv4/IPv6 仍待验证。
 
 ## 当前判断
 
@@ -10,10 +10,10 @@ ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自�
 
 | 层级 | 已确认 | 尚未确认 |
 | --- | --- | --- |
-| HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建和 Wi-Fi/蜂窝切换门禁。 | peer 数据面、控制面配置变化后的重建和长期后台行为。 |
-| Go | OpenHarmony-SIG Go 1.24 的 AArch64 `c-shared` 已通过加载、100 次启停、30 分钟 soak，并运行 Tailscale userspace engine。 | 完整 Tailscale 数据面与长时间资源稳定性。 |
+| HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建、peer TSMP 和 Wi-Fi/蜂窝切换门禁。 | peer TCP、控制面配置变化后的重建和长期后台行为。 |
+| Go | OpenHarmony-SIG Go 1.24 的 AArch64 `c-shared` 已通过加载、100 次启停、30 分钟 soak，并运行 Tailscale userspace engine；peer TSMP 已实际往返。 | TCP、MagicDNS、IPv6 与长时间资源稳定性。 |
 | 相邻项目 | ClashBox 公开实现了 HarmonyOS NEXT 上的 Go `.so`、VPN Ability、TUN FD 与逐 socket `protect`，并提供 HAP Release。 | ClashBox 不是 Tailscale，不能证明 WireGuard、DERP、MagicDNS 和 Tailscale 控制面可用。 |
-| Tailscale | LocalBackend 已在真机完成交互式登录、`Running`、动态 `router.Config`/`dns.OSConfig` 和重启免登录。 | DERP/直连、MagicDNS、peer TCP、IPv4/IPv6 与异常恢复。 |
+| Tailscale | LocalBackend 已在真机完成交互式登录、`Running`、动态 `router.Config`/`dns.OSConfig`、重启免登录，并通过自建 DERP 900 到在线 peer 的 TSMP。 | 直连、MagicDNS、peer TCP、IPv6 与异常恢复。 |
 
 ## 已纠正的关键假设
 
@@ -102,7 +102,7 @@ P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测�
 └── scripts/               # HAP、依赖、工具链和 engine 构建
 ```
 
-当前进入 P4，只推进真实 peer、DERP/直连、MagicDNS、IPv4/IPv6 和配置变化验证；完整产品 UI 仍不在范围内。
+当前处于 P4：peer TSMP 与自建 DERP 已通过，下一步验证 peer TCP、直连、MagicDNS、IPv4/IPv6 和配置变化；完整产品 UI 仍不在范围内。
 
 ## 安全
 

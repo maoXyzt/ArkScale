@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/netip"
 	"testing"
 
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine/router"
@@ -48,5 +51,19 @@ func TestBackendProtocol(t *testing.T) {
 		len(event.Routes) != 1 || event.Routes[0].IP != "10.128.0.0" || event.Routes[0].PrefixLength != 9 ||
 		len(event.Nameservers) != 1 || event.SearchDomains[0] != "tailnet.ts.net" {
 		t.Fatalf("vpn config event = %+v", event)
+	}
+}
+
+func TestPeerPath(t *testing.T) {
+	if got := peerPath(&ipnstate.PingResult{Endpoint: "192.0.2.1:41641"}); got != "direct 192.0.2.1:41641" {
+		t.Fatalf("direct path = %q", got)
+	}
+	if got := peerPath(&ipnstate.PingResult{DERPRegionCode: "hkg"}); got != "derp hkg" {
+		t.Fatalf("DERP path = %q", got)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := awaitPing(ctx, make(chan pingOutcome)); !errors.Is(err, context.Canceled) {
+		t.Fatalf("awaitPing() error = %v", err)
 	}
 }

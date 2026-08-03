@@ -156,3 +156,11 @@
 - Mate X7 真机已完成官方交互式登录，LocalBackend 进入 `Running`，`router.Config` / `dns.OSConfig` 触发 `configGen=1` 的 Harmony TUN 创建，Native 显示 `protected/tunDup/engineTun/sameProcess` 全部 PASS。
 - CommonEvent 不是状态存储；浏览器前台期间 UI 会错过瞬时 `RUNNING`/`READY`。Extension 需保留最小状态快照，并在页面重新显示时响应 `STATUS` 请求。
 - 覆盖安装后的首次重启无需再次登录，证明当前 FileStore 应用私有目录路径可持久化 Tailscale 身份状态；停止路径也已收敛为显式 `Backend: STOPPED` 快照。
+
+## P4 peer 与 DERP 数据面（2026-08-03）
+
+- `hdc shell ping` 来自系统 shell，不经过 ArkScale 应用 VPN，不能作为全设备 VPN 数据面门禁；探针必须从应用 VPN 路径内部发起。
+- LocalBackend 的 TSMP 可验证到 peer 的 WireGuard/IP 数据面，Disco 可独立报告直连 endpoint 或 DERP region；两者组合足以验证当前路径而不假设 peer 开放某个 TCP 端口。
+- pinned Tailscale 的 `LocalBackend.Ping` 会在进入自身 context select 前同步调用 engine Ping；调用侧需设置独立 deadline，避免异常网络状态阻塞整个 VPN 停止流程。
+- `wgengine.NewUserspaceEngine` 构造 wrapper 后不会替平台自动启动外部 TUN；官方 `tailscaled` 和 `tsnet` 都会调用 `sys.Tun.Get().Start()`。遗漏该调用时 Disco/control 可用，但 `tstun.Wrapper.Read()` 会阻塞在 `awaitStart()`，表现为 TSMP 无握手且发送计数为零。
+- Mate X7 到 alpine `100.127.64.12` 的 TSMP 最终为 `PASS 77.3ms`，Disco 路径为 `derp myderp`；结合用户确认 region 900 已恢复，可确认自建 DERP 900 承载的数据路径可用。该结果不证明直连、TCP、MagicDNS 或 IPv6。

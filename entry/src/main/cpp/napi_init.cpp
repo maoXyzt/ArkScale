@@ -42,6 +42,14 @@ struct StopEngineWork {
     int result = ARKSCALE_ERROR_INTERNAL;
 };
 
+struct ProbePeerWork {
+    napi_async_work work = nullptr;
+    napi_deferred deferred = nullptr;
+    std::string target;
+    std::string eventJson;
+    int result = ARKSCALE_ERROR_INTERNAL;
+};
+
 static napi_value CreateError(napi_env env, const char* message)
 {
     napi_value text;
@@ -263,6 +271,74 @@ static napi_value StopEngine(napi_env env, napi_callback_info)
         }
         delete context;
         napi_throw_error(env, nullptr, "unable to queue engine stop");
+        return nullptr;
+    }
+    return promise;
+}
+
+static napi_value ProbePeer(napi_env env, napi_callback_info info)
+{
+    size_t argc = 1;
+    napi_value argv[1];
+    size_t targetLength = 0;
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc != 1 ||
+        napi_get_value_string_utf8(env, argv[0], nullptr, 0, &targetLength) != napi_ok || targetLength == 0 ||
+        targetLength > 128) {
+        napi_throw_type_error(env, nullptr, "probePeer requires an IP address");
+        return nullptr;
+    }
+
+    ProbePeerWork* context = new (std::nothrow) ProbePeerWork;
+    if (context == nullptr) {
+        napi_throw_error(env, nullptr, "unable to allocate peer probe work");
+        return nullptr;
+    }
+    context->target.resize(targetLength);
+    if (napi_get_value_string_utf8(env, argv[0], &context->target[0], targetLength + 1, &targetLength) != napi_ok) {
+        delete context;
+        napi_throw_type_error(env, nullptr, "unable to read peer IP address");
+        return nullptr;
+    }
+
+    napi_value promise;
+    napi_value resourceName;
+    if (napi_create_promise(env, &context->deferred, &promise) != napi_ok) {
+        delete context;
+        napi_throw_error(env, nullptr, "unable to create peer probe promise");
+        return nullptr;
+    }
+    napi_create_string_utf8(env, "ArkScaleProbePeer", NAPI_AUTO_LENGTH, &resourceName);
+    napi_status status = napi_create_async_work(env, nullptr, resourceName,
+        [](napi_env, void* data) {
+            ProbePeerWork* work = static_cast<ProbePeerWork*>(data);
+            char* json = nullptr;
+            size_t length = 0;
+            work->result = arkscale_probe_peer(work->target.c_str(), &json, &length);
+            if (work->result == ARKSCALE_OK && json != nullptr && length > 0) {
+                work->eventJson.assign(json, length);
+            }
+            if (json != nullptr) {
+                arkscale_free(json);
+            }
+        },
+        [](napi_env env, napi_status status, void* data) {
+            ProbePeerWork* work = static_cast<ProbePeerWork*>(data);
+            if (status == napi_ok && work->result == ARKSCALE_OK && !work->eventJson.empty()) {
+                napi_value value;
+                napi_create_string_utf8(env, work->eventJson.c_str(), work->eventJson.size(), &value);
+                napi_resolve_deferred(env, work->deferred, value);
+            } else {
+                napi_reject_deferred(env, work->deferred, CreateError(env, "peer probe failed"));
+            }
+            napi_delete_async_work(env, work->work);
+            delete work;
+        }, context, &context->work);
+    if (status != napi_ok || napi_queue_async_work(env, context->work) != napi_ok) {
+        if (context->work != nullptr) {
+            napi_delete_async_work(env, context->work);
+        }
+        delete context;
+        napi_throw_error(env, nullptr, "unable to queue peer probe");
         return nullptr;
     }
     return promise;
@@ -506,6 +582,7 @@ static napi_value Init(napi_env env, napi_value exports)
         {"stopEngine", nullptr, StopEngine, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"networkChanged", nullptr, NetworkChanged, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"suspendVpnTun", nullptr, SuspendVpnTun, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"probePeer", nullptr, ProbePeer, nullptr, nullptr, nullptr, napi_default, nullptr},
     };
     napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties);
     return exports;

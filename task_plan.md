@@ -49,7 +49,8 @@
 - **状态：** completed
 
 ### 阶段 P4：端到端网络
-- [ ] 验证 peer、DERP/直连、MagicDNS、IPv4/IPv6
+- [x] 验证 peer TSMP 与自建 DERP 数据路径
+- [ ] 验证 peer TCP、直连、MagicDNS、IPv4/IPv6
 - [ ] 验证 Wi-Fi/蜂窝切换和控制面配置变化
 - **状态：** in_progress
 

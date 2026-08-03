@@ -145,6 +145,9 @@
 | P2 两阶段停止与可复制状态本地构建 | `pnpm run build:hap && pnpm run verify:hap` | ArkTS 编译、签名打包和 HAP 校验通过 | BUILD SUCCESSFUL；HAP verification passed | pass |
 | P2 默认网络监听本地构建 | NetworkKit default network callback / GET_NETWORK_INFO | ArkTS 编译且权限进入 HAP | BUILD SUCCESSFUL；HAP verification passed | pass |
 | P2 Wi-Fi/蜂窝切换真机 | Mate X7 / VPN READY 后切换默认网络 | `Network: SWITCH PASS WIFI->CELLULAR` 或反向 | `SWITCH PASS CELLULAR->WIFI netId=118 switches=2` | pass |
+| P4 peer 探针修复前 | Mate X7 / `100.127.64.12` | 在明确 deadline 内返回结果 | DERP 恢复后仍超时，WireGuard `tx=0`、无握手 | red |
+| P4 peer TSMP 与 DERP | Mate X7 / alpine `100.127.64.12` / DERP 900 | TSMP 成功并报告实际路径 | `PASS alpine 77.3ms derp myderp` | pass |
+| P4 peer 探针停止回归 | peer PASS 后 Stop | 生命周期正常停止且 fd 门禁保持通过 | `STOPPED dupOwnership=PASS engineTun=PASS` | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -178,10 +181,12 @@
 | 2026-08-02 | 自动执行 HDC 设备列表返回 `Connect server failed`，受控提权被拒绝 | 2 | 不绕过本机 daemon；由用户终端运行 `hdc list targets` |
 | 2026-08-02 | 沙箱内执行 `hdc help` 仍等待本机 daemon | 1 | 不重复；使用本地文档和用户已确认的设备结果继续 |
 | 2026-08-03 | P2 Stop 在 `onDestroy` 后未上报 `dupOwnership=PASS` | 1 | 改成 Extension 内先完成 destroy/dup 校验并发布 STOPPED，UI 再调用 stop ability |
+| 2026-08-03 | P4 peer 探针和 Stop 一起长期挂起 | 1 | 不依赖上游同步 `Ping` 自行遵守 context；异步执行并在调用侧按 5 秒 deadline 返回 |
+| 2026-08-03 | DERP 已恢复但 TSMP 无握手且 `tx=0` | 1 | 对照 pinned 官方启动顺序，补齐 `sys.Tun.Get().Start()` 并加入构建门禁 |
 
 ## 当前诊断门禁
 - P0 已完成；实现不含 Tailscale 的最小 Go c-shared library，并接入现有 Node-API/HAP。
-- P0/P1/P2/P3 已完成；当前进入 P4 端到端网络验证。
+- P0/P1/P2/P3 已完成；P4 的 peer TSMP 与自建 DERP 已通过，继续验证 TCP、直连、MagicDNS、IPv4/IPv6 和配置变化。
 
 ## 当前外部输入
 - 无；下一步输入均在固定的 Tailscale v1.82.5 checkout 中。
@@ -215,3 +220,8 @@
 - P3 真机首次交互登录成功；浏览器返回后通过状态快照恢复为 `Backend: RUNNING`，Extension 动态应用 `configGen=1`，TUN fd 接管保持全部 PASS。
 - 停止、覆盖安装并再次启动后无需重新登录，直接恢复 `RUNNING` 与 `configGen=1`；应用私有目录中的 Tailscale 状态持久化门禁通过。
 - 停止态最终显示 `Backend: STOPPED`、`dupOwnership=PASS`、`engineTun=PASS`；P3 完成，下一步进入真实 peer/DERP/MagicDNS 数据面验证。
+- P4 新增应用内 peer 探针，以 TSMP 验证 WireGuard 数据面、Disco 报告直连或 DERP 路径；目标 IP 由页面输入，结果保留在可复制诊断块中。
+- 首版探针会在上游同步 `Ping` 卡住时长期占有生命周期锁；现由 5 秒 deadline 限制等待，并用取消回归检查保证 Stop 不再无限阻塞。
+- 900 不可用时探针按预期失败；恢复后 Disco 显示 `derp myderp`，但最初 TSMP 仍无握手且发送计数为零。
+- 根因是 backend 构造后遗漏 `sys.Tun.Get().Start()`，Tailscale wrapper 因而一直阻塞在 `awaitStart()`；按 pinned `tailscaled`/`tsnet` 启动顺序补齐该调用并加入静态回归门禁。
+- 修复后的 Mate X7 显示 `Peer: PASS alpine 77.3ms derp myderp`；停止后再观察状态也保持 `STOPPED dupOwnership=PASS engineTun=PASS`，peer TSMP 与自建 DERP 900 子门禁完成。

@@ -12,6 +12,9 @@ if [ ! -f "$ARKSCALE_ENGINE" ]; then
   exit 1
 fi
 
+grep -E '^[[:space:]]*sys\.Tun\.Get\(\)\.Start\(\)' \
+  "$ARKSCALE_ROOT/engine/cmd/arkscale/backend.go" >/dev/null
+
 ARKSCALE_HEADER=$("$ARKSCALE_READELF" -h "$ARKSCALE_ENGINE")
 echo "$ARKSCALE_HEADER"
 echo "$ARKSCALE_HEADER" | grep -q 'Class:.*ELF64'
@@ -40,6 +43,7 @@ for ARKSCALE_SYMBOL in \
   arkscale_set_tun \
   arkscale_clear_tun \
   arkscale_network_changed \
+  arkscale_probe_peer \
   arkscale_stop
 do
   echo "$ARKSCALE_DYNSYMS" | grep "$ARKSCALE_SYMBOL" >/dev/null

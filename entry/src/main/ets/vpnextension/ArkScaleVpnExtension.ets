@@ -83,6 +83,8 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
             this.stopProbe();
           } else if (data.data === 'STATUS') {
             this.publishSnapshot();
+          } else if (data.data?.startsWith('PING|') && !this.stopping) {
+            this.probePeer(data.data.substring(5));
           }
         });
       this.publishStatus('ON_CREATE');
@@ -352,8 +354,36 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
       prefix.prefixLength >= 0 && prefix.prefixLength <= (prefix.family === 1 ? 32 : 128);
   }
 
-  private publishEngineEvent(eventJson: string): void {
-    this.lastEngineEvent = eventJson;
+  private async probePeer(target: string): Promise<void> {
+    if (!this.engineStarted || target.length === 0 || target.length > 128) {
+      this.publishEngineEvent(JSON.stringify({
+        schemaVersion: 1,
+        type: 'peer-probe',
+        target: target,
+        ok: false,
+        path: 'unavailable',
+        error: this.engineStarted ? 'invalid IP' : 'backend not started'
+      }), false);
+      return;
+    }
+    try {
+      this.publishEngineEvent(await bridge.probePeer(target), false);
+    } catch (error) {
+      this.publishEngineEvent(JSON.stringify({
+        schemaVersion: 1,
+        type: 'peer-probe',
+        target: target,
+        ok: false,
+        path: 'unavailable',
+        error: 'probe failed'
+      }), false);
+    }
+  }
+
+  private publishEngineEvent(eventJson: string, remember: boolean = true): void {
+    if (remember) {
+      this.lastEngineEvent = eventJson;
+    }
     commonEventManager.publish(ENGINE_EVENT, { bundleName: BUNDLE_NAME, data: eventJson }, (error: BusinessError) => {
       if (error?.code) {
         console.error(`Engine event publish failed: ${error.code}`);
