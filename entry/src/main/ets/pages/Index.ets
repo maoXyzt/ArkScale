@@ -1,6 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { BusinessError, commonEventManager } from '@kit.BasicServicesKit';
-import { vpnExtension } from '@kit.NetworkKit';
+import { connection, vpnExtension } from '@kit.NetworkKit';
 import bridge from 'libarkscale_bridge.so';
 
 const VPN_PROBE_EVENT = 'com.arkscale.client.VPN_PROBE_STATUS';
@@ -20,6 +20,7 @@ interface EngineEvent {
   nodeName?: string;
   path?: string;
   latencyMs?: number;
+  dnsName?: string;
   error?: string;
 }
 
@@ -37,6 +38,8 @@ struct Index {
   @State private loginUrl: string = '';
   @State private peerTarget: string = '';
   @State private peerStatus: string = 'NOT TESTED';
+  @State private magicDnsTarget: string = '';
+  @State private magicDnsStatus: string = 'NOT TESTED';
   private subscriber?: commonEventManager.CommonEventSubscriber;
   private stopRequested: boolean = false;
 
@@ -174,7 +177,8 @@ struct Index {
       `Native in VPN process: ${this.vpnNativeStatus}\n` +
       `Backend: ${this.engineStatus}\n` +
       `Network: ${this.networkStatus}\n` +
-      `Peer: ${this.peerStatus}`;
+      `Peer: ${this.peerStatus}\n` +
+      `MagicDNS: ${this.magicDnsStatus}`;
   }
 
   private handleEngineEvent(eventJson: string): void {
@@ -194,6 +198,7 @@ struct Index {
       } else if (event.type === 'health' && event.severity !== undefined && event.message !== undefined) {
         this.engineStatus = `${event.severity.toUpperCase()}: ${event.message}`;
       } else if (event.type === 'peer-probe' && event.target !== undefined && event.path !== undefined) {
+        this.magicDnsTarget = (event.dnsName ?? '').replace(/\.$/, '');
         this.peerStatus = event.ok ?
           `PASS ${event.nodeName ?? event.target} ${(event.latencyMs ?? 0).toFixed(1)}ms ${event.path}` :
           `FAIL ${event.nodeName ?? event.target} ${event.error ?? 'unknown error'} path=${event.path}`;
@@ -232,9 +237,26 @@ struct Index {
     });
   }
 
+  private async probeMagicDns(): Promise<void> {
+    const target = this.magicDnsTarget.trim();
+    if (target.length === 0 || target.length > 253) {
+      this.magicDnsStatus = 'INVALID HOSTNAME';
+      return;
+    }
+    this.magicDnsStatus = 'RESOLVING';
+    try {
+      const addresses = await connection.getAddressesByName(target);
+      this.magicDnsStatus = addresses.length > 0 ?
+        `PASS ${target} -> ${addresses.map((address: connection.NetAddress): string => address.address).join(',')}` :
+        `FAIL ${target} no addresses`;
+    } catch (error) {
+      this.magicDnsStatus = `FAIL ${target} code=${(error as BusinessError).code ?? -1}`;
+    }
+  }
+
   build() {
     Column({ space: 12 }) {
-      Text('ArkScale P3')
+      Text('ArkScale P4')
         .fontSize(28)
         .fontWeight(FontWeight.Bold)
       Text(this.diagnosticText())
@@ -253,6 +275,11 @@ struct Index {
         .onChange((value: string) => this.peerTarget = value)
       Button('Probe peer')
         .onClick(() => this.probePeer())
+      TextInput({ placeholder: 'MagicDNS hostname', text: this.magicDnsTarget })
+        .width('80%')
+        .onChange((value: string) => this.magicDnsTarget = value)
+      Button('Resolve MagicDNS')
+        .onClick(() => this.probeMagicDns())
       Row({ space: 12 }) {
         Button('Start ArkScale')
           .onClick(() => this.startVpn())

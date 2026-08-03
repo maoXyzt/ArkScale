@@ -105,8 +105,20 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
       await this.connection.protectProcessNet();
       bridge.markVpnProtected();
       this.publishStatus('PROTECTED');
-      this.startNetworkProbe();
-      await bridge.startEngine(JSON.stringify({ schemaVersion: 1, stateDir: this.context.filesDir }),
+      const physicalNet = connection.getDefaultNetSync();
+      // ponytail: this DNS snapshot lasts for one VPN generation; refresh it when switch-time DNS rebuild lands.
+      const physicalProperties = connection.getConnectionPropertiesSync(physicalNet);
+      const baseNameservers = physicalProperties.dnses.map((address: connection.NetAddress): string => address.address);
+      if (baseNameservers.length === 0) {
+        throw new Error('Physical network has no DNS servers');
+      }
+      this.startNetworkProbe(physicalNet);
+      await bridge.startEngine(JSON.stringify({
+        schemaVersion: 1,
+        stateDir: this.context.filesDir,
+        baseNameservers: baseNameservers,
+        baseSearchDomains: physicalProperties.domains.split(' ').filter((domain: string): boolean => domain.length > 0)
+      }),
         (eventJson: string) => this.handleEngineEvent(eventJson));
       this.engineStarted = true;
       this.publishStatus('BACKEND READY');
@@ -155,9 +167,8 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     }
   }
 
-  private startNetworkProbe(): void {
+  private startNetworkProbe(defaultNet: connection.NetHandle): void {
     try {
-      const defaultNet = connection.getDefaultNetSync();
       this.networkBearer = this.physicalBearer(connection.getNetCapabilitiesSync(defaultNet).bearerTypes);
       this.networkMonitor = connection.createNetConnection();
       this.networkMonitoring = true;

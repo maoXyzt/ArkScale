@@ -14,13 +14,19 @@ import (
 )
 
 func TestBackendProtocol(t *testing.T) {
-	config, err := parseStartConfig(`{"schemaVersion":1,"stateDir":"/data/storage/el2/base/files"}`)
+	config, err := parseStartConfig(`{"schemaVersion":1,"stateDir":"/data/storage/el2/base/files","baseNameservers":["192.0.2.53"],"baseSearchDomains":["lan"]}`)
 	if err != nil || config.StateDir != "/data/storage/el2/base/files" {
 		t.Fatalf("parseStartConfig() = %+v, %v", config, err)
+	}
+	baseDNS, err := config.baseDNSConfig()
+	if err != nil || len(baseDNS.Nameservers) != 1 || baseDNS.Nameservers[0].String() != "192.0.2.53" ||
+		len(baseDNS.SearchDomains) != 1 || baseDNS.SearchDomains[0] != "lan." {
+		t.Fatalf("baseDNSConfig() = %+v, %v", baseDNS, err)
 	}
 	for _, invalid := range []string{
 		`{"schemaVersion":2,"stateDir":"/data/storage/el2/base/files"}`,
 		`{"schemaVersion":1,"stateDir":"relative"}`,
+		`{"schemaVersion":1,"stateDir":"/data/storage/el2/base/files","baseNameservers":["not-an-ip"]}`,
 	} {
 		if _, err := parseStartConfig(invalid); err == nil {
 			t.Fatalf("parseStartConfig(%s) succeeded", invalid)

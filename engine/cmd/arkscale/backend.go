@@ -24,7 +24,9 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/tsd"
 	"tailscale.com/types/logid"
+	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine"
+	"tailscale.com/wgengine/netstack"
 	"tailscale.com/wgengine/router"
 )
 
@@ -33,13 +35,16 @@ const eventSchemaVersion = 1
 var engineEvents = make(chan []byte, 64)
 
 type startConfig struct {
-	SchemaVersion int    `json:"schemaVersion"`
-	StateDir      string `json:"stateDir"`
+	SchemaVersion     int      `json:"schemaVersion"`
+	StateDir          string   `json:"stateDir"`
+	BaseNameservers   []string `json:"baseNameservers"`
+	BaseSearchDomains []string `json:"baseSearchDomains"`
 }
 
 type backendRuntime struct {
 	backend          *ipnlocal.LocalBackend
 	netMon           *netmon.Monitor
+	netstack         *netstack.Impl
 	configGeneration uint64
 	mtu              int
 	ctx              context.Context
@@ -89,6 +94,7 @@ type peerProbeEvent struct {
 	Target        string  `json:"target"`
 	OK            bool    `json:"ok"`
 	NodeName      string  `json:"nodeName,omitempty"`
+	DNSName       string  `json:"dnsName,omitempty"`
 	Path          string  `json:"path"`
 	LatencyMS     float64 `json:"latencyMs,omitempty"`
 	Error         string  `json:"error,omitempty"`
@@ -111,10 +117,39 @@ func parseStartConfig(raw string) (startConfig, error) {
 	if !filepath.IsAbs(config.StateDir) || config.StateDir == string(filepath.Separator) {
 		return config, errors.New("stateDir must be an absolute app-private directory")
 	}
+	if _, err := config.baseDNSConfig(); err != nil {
+		return config, err
+	}
+	return config, nil
+}
+
+func (c startConfig) baseDNSConfig() (dns.OSConfig, error) {
+	if len(c.BaseNameservers) == 0 {
+		return dns.OSConfig{}, errors.New("baseNameservers must not be empty")
+	}
+	config := dns.OSConfig{}
+	for _, raw := range c.BaseNameservers {
+		address, err := netip.ParseAddr(raw)
+		if err != nil {
+			return dns.OSConfig{}, fmt.Errorf("invalid base nameserver %q", raw)
+		}
+		config.Nameservers = append(config.Nameservers, address)
+	}
+	for _, raw := range c.BaseSearchDomains {
+		domain, err := dnsname.ToFQDN(raw)
+		if err != nil {
+			return dns.OSConfig{}, fmt.Errorf("invalid base search domain %q", raw)
+		}
+		config.SearchDomains = append(config.SearchDomains, domain)
+	}
 	return config, nil
 }
 
 func newBackendRuntime(config startConfig, tunDevice *multiTUN) (_ *backendRuntime, err error) {
+	baseDNSConfig, err := config.baseDNSConfig()
+	if err != nil {
+		return nil, err
+	}
 	if err := setDefaultEnv("HOME", config.StateDir); err != nil {
 		return nil, err
 	}
@@ -147,7 +182,10 @@ func newBackendRuntime(config startConfig, tunDevice *multiTUN) (_ *backendRunti
 	sys.Set(stateStore)
 	dialer := new(tsdial.Dialer)
 	callbackRouter := &router.CallbackRouter{
-		SetBoth:    runtime.setConfig,
+		SetBoth: runtime.setConfig,
+		GetBaseConfigFunc: func() (dns.OSConfig, error) {
+			return baseDNSConfig, nil
+		},
 		InitialMTU: harmonyTunMTU,
 	}
 	engine, err := wgengine.NewUserspaceEngine(logf, wgengine.Config{
@@ -167,23 +205,39 @@ func newBackendRuntime(config startConfig, tunDevice *multiTUN) (_ *backendRunti
 		return nil, fmt.Errorf("create userspace engine: %w", err)
 	}
 	sys.Set(engine)
+	dnsNetstack, err := netstack.Create(logf, sys.Tun.Get(), engine, sys.MagicSock.Get(), dialer,
+		sys.DNSManager.Get(), sys.ProxyMapper())
+	if err != nil {
+		cancel()
+		engine.Close()
+		_ = netMon.Close()
+		return nil, fmt.Errorf("create netstack: %w", err)
+	}
+	runtime.netstack = dnsNetstack
+	sys.Set(dnsNetstack)
 	sys.Tun.Get().Start()
 
 	backend, err := ipnlocal.NewLocalBackend(logf, logid.PublicID{}, sys, 0)
 	if err != nil {
 		cancel()
+		_ = dnsNetstack.Close()
 		engine.Close()
 		_ = netMon.Close()
 		return nil, fmt.Errorf("create LocalBackend: %w", err)
 	}
 	runtime.backend = backend
+	if err := dnsNetstack.Start(backend); err != nil {
+		runtime.Close()
+		return nil, fmt.Errorf("start netstack: %w", err)
+	}
 	backend.SetNotifyCallback(runtime.notify)
 	if err := backend.Start(ipn.Options{}); err != nil {
 		runtime.Close()
 		return nil, fmt.Errorf("start LocalBackend: %w", err)
 	}
 	_, err = backend.EditPrefs(&ipn.MaskedPrefs{
-		Prefs:          ipn.Prefs{WantRunning: true},
+		Prefs:          ipn.Prefs{WantRunning: true, CorpDNS: true},
+		CorpDNSSet:     true,
 		WantRunningSet: true,
 	})
 	if err != nil {
@@ -300,6 +354,7 @@ func (r *backendRuntime) probePeer(target string) ([]byte, error) {
 		return json.Marshal(event)
 	}
 	event.NodeName = peer.ComputedName()
+	event.DNSName = peer.Name()
 
 	ctx, cancel := context.WithTimeout(r.ctx, 5*time.Second)
 	tsmp, tsmpErr := r.pingWithDeadline(ctx, addr, tailcfg.PingTSMP)
@@ -412,6 +467,9 @@ func (r *backendRuntime) Close() {
 	r.cancel()
 	if r.backend != nil {
 		r.backend.Shutdown()
+	}
+	if r.netstack != nil {
+		_ = r.netstack.Close()
 	}
 	_ = r.netMon.Close()
 }
