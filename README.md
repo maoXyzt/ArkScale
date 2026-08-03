@@ -2,7 +2,7 @@
 
 ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自用的 Tailscale 全设备 VPN 客户端。
 
-> 当前仓库已完成 P0–P3，并在 P4 通过 peer TSMP 与自建 DERP 数据路径真机门禁；peer TCP、直连、MagicDNS 与 IPv4/IPv6 仍待验证。
+> 当前仓库已完成 P0–P3，并在 P4 通过 peer TSMP、自建 DERP 数据路径和 MagicDNS 真机门禁；peer TCP、直连与 IPv6 仍待验证。
 
 ## 当前判断
 
@@ -10,10 +10,10 @@ ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自�
 
 | 层级 | 已确认 | 尚未确认 |
 | --- | --- | --- |
-| HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建、peer TSMP 和 Wi-Fi/蜂窝切换门禁。 | peer TCP、控制面配置变化后的重建和长期后台行为。 |
-| Go | OpenHarmony-SIG Go 1.24 的 AArch64 `c-shared` 已通过加载、100 次启停、30 分钟 soak，并运行 Tailscale userspace engine；peer TSMP 已实际往返。 | TCP、MagicDNS、IPv6 与长时间资源稳定性。 |
+| HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建、peer TSMP、MagicDNS 和 Wi-Fi/蜂窝切换门禁。 | peer TCP、控制面配置变化后的重建和长期后台行为。 |
+| Go | OpenHarmony-SIG Go 1.24 的 AArch64 `c-shared` 已通过加载、100 次启停、30 分钟 soak，并运行 Tailscale userspace engine 与 Quad100 netstack；peer TSMP 和 MagicDNS A 记录已实际往返。 | TCP、IPv6 与长时间资源稳定性。 |
 | 相邻项目 | ClashBox 公开实现了 HarmonyOS NEXT 上的 Go `.so`、VPN Ability、TUN FD 与逐 socket `protect`，并提供 HAP Release。 | ClashBox 不是 Tailscale，不能证明 WireGuard、DERP、MagicDNS 和 Tailscale 控制面可用。 |
-| Tailscale | LocalBackend 已在真机完成交互式登录、`Running`、动态 `router.Config`/`dns.OSConfig`、重启免登录，并通过自建 DERP 900 到在线 peer 的 TSMP。 | 直连、MagicDNS、peer TCP、IPv6 与异常恢复。 |
+| Tailscale | LocalBackend 已在真机完成交互式登录、`Running`、动态 `router.Config`/`dns.OSConfig`、重启免登录，并通过自建 DERP 900 到在线 peer 的 TSMP；MagicDNS 已把 peer FQDN 解析为其 Tailscale IPv4。 | 直连、peer TCP、IPv6 与异常恢复。 |
 
 ## 已纠正的关键假设
 
@@ -56,7 +56,7 @@ P0 默认使用 `https://goproxy.cn,direct` 下载公开 Go modules；可通过�
 
 该命令会获取并校验固定的 Go/Tailscale commit，构建 SIG Go 工具链、编译 `c-shared` engine，并检查架构、动态依赖和 C ABI 导出符号。当前固定输入已经通过 P0。
 
-`engine/cmd/arkscale` 已组装显式的 portable NetMon、CallbackRouter、userspace engine 与 LocalBackend，并通过事件 ABI 向 VPN Extension 提供状态、登录 URL、地址、路由、DNS 和 MTU。
+`engine/cmd/arkscale` 已组装显式的 portable NetMon、CallbackRouter、userspace engine、Quad100 netstack 与 LocalBackend，并通过事件 ABI 向 VPN Extension 提供状态、登录 URL、地址、路由、DNS 和 MTU。
 
 P0 通过后，使用同一个 Linux SDK 和本地 builder 镜像构建 P1。该命令先生成不含 Tailscale 的 Go smoke library，再构建并校验 HAP：
 
@@ -72,6 +72,8 @@ P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测�
 30 分钟测试期间应用会请求主窗口保持亮屏。请保持 ArkScale 在前台，并建议连接电源；手动锁屏、切到后台或系统拒绝保持亮屏时，本次结果无效。最终 PASS 除了要求经过 30 分钟，还要求 Go worker 实际产生至少 17000 个 100 ms tick，避免仅凭 ArkTS 墙上时间误判。
 
 页面提供 `Start ArkScale` / `Stop ArkScale`。首次启动需完成系统 VPN 授权和 Tailscale 交互登录；成功后应显示 `Backend: RUNNING`、`Extension: READY configGen=...` 和 Native 的 `protected/tunDup/engineTun/sameProcess=PASS`。停止后应显示 `Backend: STOPPED` 与 `dupOwnership/engineTun=PASS`。
+
+输入 peer 的 Tailscale IP 并执行 `Probe peer` 后，页面会自动填入控制面下发的完整 DNS 名称。`Resolve MagicDNS` 必须通过 VPN 的 `100.100.100.100` 解析到该 peer 的预期 Tailscale IP；该门禁已于 2026-08-03 在 Mate X7 上通过，设备与 tailnet 标识不入库。
 
 ## 实施门禁
 
@@ -102,7 +104,7 @@ P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测�
 └── scripts/               # HAP、依赖、工具链和 engine 构建
 ```
 
-当前处于 P4：peer TSMP 与自建 DERP 已通过，下一步验证 peer TCP、直连、MagicDNS、IPv4/IPv6 和配置变化；完整产品 UI 仍不在范围内。
+当前处于 P4：peer TSMP、自建 DERP 与 MagicDNS 已通过，下一步验证 peer TCP、直连、IPv6 和配置变化；完整产品 UI 仍不在范围内。
 
 ## 安全
 
