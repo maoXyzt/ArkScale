@@ -15,11 +15,13 @@ if ! echo "$ARKSCALE_CLANG_TYPE" | grep -Eq 'ELF 64-bit.*x86-64'; then
   exit 1
 fi
 
-docker build \
-  --platform linux/amd64 \
-  --file "$ARKSCALE_ROOT/docker/p0.Dockerfile" \
-  --tag "$ARKSCALE_P0_IMAGE" \
-  "$ARKSCALE_ROOT/docker"
+if ! docker image inspect "$ARKSCALE_P0_IMAGE" >/dev/null 2>&1; then
+  docker build \
+    --platform linux/amd64 \
+    --file "$ARKSCALE_ROOT/docker/p0.Dockerfile" \
+    --tag "$ARKSCALE_P0_IMAGE" \
+    "$ARKSCALE_ROOT/docker"
+fi
 
 docker run \
   --rm \
