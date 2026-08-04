@@ -7,6 +7,9 @@
 **/.hvigor/
 **/.cxx/
 /entry/libs/
+.env
+.env.*
+!.env.example
 *.p12
 *.p7b
 *.cer
