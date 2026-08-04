@@ -45,9 +45,9 @@ printf '%s\n' \
   "PackageVersion: $ARKSCALE_VERSION" \
   'PackageDownloadLocation: NOASSERTION' \
   'FilesAnalyzed: false' \
-  'PackageLicenseConcluded: NOASSERTION' \
-  'PackageLicenseDeclared: NOASSERTION' \
-  'PackageCopyrightText: NOASSERTION' \
+  'PackageLicenseConcluded: MIT' \
+  'PackageLicenseDeclared: MIT' \
+  'PackageCopyrightText: Copyright (c) 2026 ArkScale contributors' \
   'Relationship: SPDXRef-DOCUMENT DESCRIBES SPDXRef-ArkScale' \
   '' \
   'PackageName: OpenHarmony-SIG Go' \
@@ -61,12 +61,17 @@ printf '%s\n' \
   'Relationship: SPDXRef-OpenHarmony-SIG-Go BUILD_TOOL_OF SPDXRef-ArkScale' \
   '' > "$ARKSCALE_SPDX"
 
+printf '%s\t%s\t%s\n' \
+  'ArkScale' \
+  "$ARKSCALE_VERSION" \
+  'ArkScale-LICENSE' > "$ARKSCALE_MANIFEST"
+cp "$ARKSCALE_ROOT/LICENSE" "$ARKSCALE_TMP/licenses/ArkScale-LICENSE"
 cp "$ARKSCALE_ROOT/third_party/ohos_golang_go/LICENSE" \
   "$ARKSCALE_TMP/licenses/OpenHarmony-SIG-Go-LICENSE"
 printf '%s\t%s\t%s\n' \
   'OpenHarmony-SIG Go' \
   '2d8b23f6923100d8c90d8add9299da2c9d032a20' \
-  'OpenHarmony-SIG-Go-LICENSE' > "$ARKSCALE_MANIFEST"
+  'OpenHarmony-SIG-Go-LICENSE' >> "$ARKSCALE_MANIFEST"
 
 (cd "$ARKSCALE_ROOT/engine" && env \
   GOTOOLCHAIN=local \

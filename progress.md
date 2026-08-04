@@ -167,6 +167,7 @@
 | P5 staged-secret 门禁 | `.env`、签名材料、Signing Config 密码 | 本地凭据不进入提交 | 忽略规则与 staged diff 检查通过 | pass |
 | P5 合规依赖范围修复前 | `go list -m all` | 仅包含 engine 运行时依赖 | 错误包含大量 lint、测试和发布工具 | red |
 | P5 SPDX 与许可证包 | OpenHarmony 目标 `go list -deps` | 运行时模块完整且许可证原文无缺失 | 52 个 Go 模块、55 条许可证映射，P0 生成通过 | pass |
+| P5 项目许可证 | 用户确认开源许可证 | 根许可证与 SPDX 一致 | MIT，版权主体为 ArkScale contributors | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |

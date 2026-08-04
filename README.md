@@ -124,6 +124,10 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 
 提交前运行 `pnpm run check:secrets`。P0 会在 `build/compliance/` 生成 SPDX SBOM 与第三方许可证原文包；这些产物应与对应 HAP 一起归档，不提交到仓库。
 
+## 许可证
+
+ArkScale 源码采用 [MIT License](LICENSE)。第三方组件适用各自许可证，详见 P0 生成的许可证原文包。
+
 ## 主要资料
 
 - [HarmonyOS：连接 VPN](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/net-vpnextension)

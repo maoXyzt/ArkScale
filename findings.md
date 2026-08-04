@@ -194,4 +194,5 @@
 - Tailscale FileStore 在应用私有目录以 `0600` 原子写入状态，跨进程 mailbox 也以 `0600` 创建；HAP 只声明 `INTERNET` 与 `GET_NETWORK_INFO`。
 - `.env` 原先未被忽略，已补齐忽略规则；staged-secret 门禁会拒绝环境文件、签名材料及 Signing Config 密码，避免本地调试签名误入提交。
 - `go list -m all` 包含 Tailscale 的 lint、测试和发布工具，不代表 engine 运行时闭包；SBOM 必须用 `GOOS=openharmony GOARCH=arm64` 的 `go list -deps` 生成。
-- 最终 SPDX 包含 52 个实际 Go 依赖模块，许可证 manifest 有 55 条原文映射；未发现缺失的模块许可证文件。ArkScale 根项目尚未选择许可证，保持明确交付阻塞。
+- 最终 SPDX 包含 52 个实际 Go 依赖模块，许可证 manifest 有 55 条第三方原文映射；未发现缺失的模块许可证文件。
+- 用户确认 ArkScale 采用 MIT 许可证，版权主体登记为 `ArkScale contributors`；SPDX 与许可证原文包同步声明 MIT，第三方依赖仍保留各自许可证。
