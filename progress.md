@@ -175,6 +175,7 @@
 | P5 P0 离线镜像复用 | 本地已有 `arkscale-p0:go1.24.5` 且 Docker Hub 不可达 | 不查询远端即可运行完整 P0 | Go 单测、AArch64 ELF/ABI 与合规包生成通过 | pass |
 | P5 peer 版本对齐 | 重启 alpine tailscale 服务并复查版本 | CLI/daemon 不再报告版本不一致 | 无版本警告，后续 peer/TCP/MagicDNS 回归通过 | pass |
 | P5 显式登出本地门禁 | Go `LocalBackend.Logout` → C ABI → Node-API → VPN Extension → UI | Stop 保留身份；Logout 成功后关闭 VPN 且下次需登录 | Go 单测、P0、HAP 构建与两类 HAP 符号校验通过 | pass |
+| P5 登出防误触 | 原生确认对话框 | 未确认时不得发出 Logout 命令 | API 24 ArkTS 与签名 HAP 构建通过 | pass |
 | P5 显式登出真机门禁 | 已登录真机点击 `Log out and forget identity` | `LOGGED OUT`，再次 Start 出现登录 URL | 会删除当前身份，待明确同意后执行 | pending |
 
 ## 错误日志

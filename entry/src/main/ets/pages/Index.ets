@@ -187,6 +187,25 @@ struct Index {
     }
   }
 
+  private confirmLogout(): void {
+    this.getUIContext().showAlertDialog({
+      title: 'Log out of Tailscale?',
+      message: 'This removes the saved identity. The next Start requires signing in again.',
+      autoCancel: true,
+      primaryButton: {
+        value: 'Cancel',
+        defaultFocus: true,
+        action: (): void => {}
+      },
+      secondaryButton: {
+        value: 'Log out',
+        action: (): void => {
+          this.logoutVpn();
+        }
+      }
+    });
+  }
+
   private async finishVpnStop(status: string): Promise<void> {
     this.controlStatus = 'STOPPING EXTENSION';
     try {
@@ -346,7 +365,7 @@ struct Index {
             .onClick(() => this.stopVpn())
         }
         Button('Log out and forget identity')
-          .onClick(() => this.logoutVpn())
+          .onClick(() => this.confirmLogout())
       }
       .width('100%')
       .padding({ top: 24, bottom: 24 })
