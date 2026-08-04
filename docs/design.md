@@ -458,12 +458,12 @@ target_link_libraries(entry PUBLIC
 
 | 风险 | 当前证据 | 处理方式 |
 | --- | --- | --- |
-| SIG Go c-shared 无法在商业 HarmonyOS NEXT 加载 | 只证明源码具备目标支持 | P1 优先验证，失败则停止 Tailscale 接入。 |
-| Linux build tag 误选 Tailscale 平台实现 | 已从 Go/Tailscale 源码确认存在 | P0/P3 补丁、扫描和运行时断言三重防护。 |
-| `protectProcessNet()` 未覆盖 Go socket 造成路由环 | API 22 契约覆盖同进程后续 socket，但缺少 ArkScale 真机证据 | 启动顺序断言、同 PID 检查和 P2 回流测试；失败才回退逐 FD。 |
-| TUN 配置变化需要重建 | API 只公开 create/destroy | generation 串行重建，并在 P2/P3 真机验证。 |
+| SIG Go c-shared 在其他商业 HarmonyOS NEXT 设备不兼容 | Mate X7 已通过加载、soak 与 Tailscale engine 门禁 | 设备矩阵逐型号扩展，不从单设备结果外推。 |
+| Linux build tag 误选 Tailscale 平台实现 | P0 已通过目标文件选择审计 | 固定补丁、扫描和运行时断言三重防护。 |
+| `protectProcessNet()` 在其他设备未覆盖 Go socket | Mate X7 已通过启动顺序、同 PID 与回流门禁 | 新型号重复 P2；失败才回退逐 FD。 |
+| TUN 配置变化需要重建 | DNS 与路由变化已在真机触发 generation 串行重建 | 保留 create/destroy 串行化和 generation 门禁。 |
 | 官方 OpenHarmony 示例不等于商业手机可用 | 示例面向特定 OpenHarmony 设备/版本 | 在实际目标机保存可复现证据。 |
-| 当前 Tailscale 候选版本与 Go fork 不兼容 | 尚未完成 ArkScale 编译 | P0 先验证；若换版，记录选择依据并重跑后续门禁。 |
+| 升级 Tailscale 或 Go fork 后不兼容 | 当前固定组合已通过 P0 与真机门禁 | 换版时记录选择依据并重跑 P0–P5。 |
 
 ## 13. 证据索引
 
