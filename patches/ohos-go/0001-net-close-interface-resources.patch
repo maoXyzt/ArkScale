@@ -1,0 +1,19 @@
+diff --git a/src/net/cgo_unix_cgo.go b/src/net/cgo_unix_cgo.go
+index 3c46fc55..69d770a3 100644
+--- a/src/net/cgo_unix_cgo.go
++++ b/src/net/cgo_unix_cgo.go
+@@ -94,0 +95,2 @@ func _C_getifaddrs(res **_C_struct_ifaddrs) (int, error) {
++
++func _C_freeifaddrs(res *_C_struct_ifaddrs) { C.freeifaddrs(res) }
+diff --git a/src/net/interface_table_openharmony.go b/src/net/interface_table_openharmony.go
+index 161688f4..3da99ffa 100644
+--- a/src/net/interface_table_openharmony.go
++++ b/src/net/interface_table_openharmony.go
+@@ -28,0 +29 @@ func interfaceTable(ifindex int) ([]Interface, error) {
++	defer _C_freeifaddrs(res)
+@@ -35,0 +37 @@ func interfaceTable(ifindex int) ([]Interface, error) {
++	defer syscall.Close(s)
+@@ -95,0 +98 @@ func interfaceAddrTable(ifi *Interface) ([]Addr, error) {
++	defer _C_freeifaddrs(res)
+@@ -102,0 +106 @@ func interfaceAddrTable(ifi *Interface) ([]Addr, error) {
++	defer syscall.Close(s)

@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	"go4.org/netipx"
@@ -34,6 +36,12 @@ import (
 const eventSchemaVersion = 1
 
 var engineEvents = make(chan []byte, 64)
+
+var (
+	processStatsMu  sync.Mutex
+	processStatmFD  = -1
+	processStatusFD = -1
+)
 
 type startConfig struct {
 	SchemaVersion     int      `json:"schemaVersion"`
@@ -395,20 +403,36 @@ func (r *backendRuntime) probePeer(target string) ([]byte, error) {
 
 func currentProcessStats() processStatsEvent {
 	stats := processStatsEvent{RSSKB: -1, OpenFDs: -1, Threads: -1, Goroutines: runtime.NumGoroutine()}
-	if raw, err := os.ReadFile("/proc/self/statm"); err == nil {
-		if rssKB, err := parseResidentKB(string(raw), os.Getpagesize()); err == nil {
+	processStatsMu.Lock()
+	defer processStatsMu.Unlock()
+	if raw, ok := readPersistentProcFile(&processStatmFD, "/proc/self/statm"); ok {
+		if rssKB, err := parseResidentKB(raw, os.Getpagesize()); err == nil {
 			stats.RSSKB = rssKB
 		}
 	}
-	if entries, err := os.ReadDir("/proc/self/fd"); err == nil {
-		stats.OpenFDs = max(len(entries)-1, 0) // ReadDir's own descriptor is visible while enumerating /proc.
-	}
-	if raw, err := os.ReadFile("/proc/self/status"); err == nil {
-		if threads, err := parseThreads(string(raw)); err == nil {
+	if raw, ok := readPersistentProcFile(&processStatusFD, "/proc/self/status"); ok {
+		if threads, err := parseThreads(raw); err == nil {
 			stats.Threads = threads
 		}
 	}
 	return stats
+}
+
+func readPersistentProcFile(fd *int, path string) (string, bool) {
+	if *fd < 0 {
+		opened, err := syscall.Open(path, syscall.O_RDONLY|syscall.O_CLOEXEC, 0)
+		if err != nil {
+			return "", false
+		}
+		// ponytail: cache the two fixed procfs files for the process lifetime; add shutdown if engine unload is added.
+		*fd = opened
+	}
+	if _, err := syscall.Seek(*fd, 0, 0); err != nil {
+		return "", false
+	}
+	buffer := make([]byte, 16*1024)
+	n, err := syscall.Read(*fd, buffer)
+	return string(buffer[:max(n, 0)]), err == nil
 }
 
 func parseResidentKB(statm string, pageSize int) (int64, error) {

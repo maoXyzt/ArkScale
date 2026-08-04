@@ -73,6 +73,10 @@ fetch_pinned \
   "$ARKSCALE_ROOT/third_party/tailscale" \
   "v1.82.5"
 apply_dependency_patch \
+  "OpenHarmony-SIG Go" \
+  "$ARKSCALE_ROOT/third_party/ohos_golang_go" \
+  "$ARKSCALE_ROOT/patches/ohos-go/0001-net-close-interface-resources.patch"
+apply_dependency_patch \
   "Tailscale" \
   "$ARKSCALE_ROOT/third_party/tailscale" \
   "$ARKSCALE_ROOT/patches/tailscale/0001-openharmony-platform-seams.patch"
