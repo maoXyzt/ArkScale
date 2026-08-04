@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -26,6 +25,7 @@ import (
 	"tailscale.com/paths"
 	"tailscale.com/tailcfg"
 	"tailscale.com/tsd"
+	"tailscale.com/types/logger"
 	"tailscale.com/types/logid"
 	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine"
@@ -178,7 +178,7 @@ func newBackendRuntime(config startConfig, tunDevice *multiTUN) (_ *backendRunti
 	}
 	paths.AppSharedDir.Store(config.StateDir)
 
-	logf := log.Printf
+	logf := logger.Discard
 	stateStore, err := store.NewFileStore(logf, filepath.Join(config.StateDir, "tailscaled.state"))
 	if err != nil {
 		return nil, fmt.Errorf("open state store: %w", err)
@@ -281,7 +281,7 @@ func (r *backendRuntime) notify(notify ipn.Notify) {
 		if *notify.State == ipn.NeedsLogin {
 			go func() {
 				if err := r.backend.StartLoginInteractive(r.ctx); err != nil && r.ctx.Err() == nil {
-					r.emitHealth("error", "interactive login failed: "+err.Error())
+					r.emitHealth("error", "interactive login failed")
 				}
 			}()
 		} else if *notify.State == ipn.NeedsMachineAuth {
@@ -296,7 +296,7 @@ func (r *backendRuntime) notify(notify ipn.Notify) {
 		})
 	}
 	if notify.ErrMessage != nil {
-		r.emitHealth("error", *notify.ErrMessage)
+		r.emitHealth("error", "backend reported an error")
 	}
 }
 

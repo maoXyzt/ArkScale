@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/util/dnsname"
@@ -71,6 +72,18 @@ func TestPeerPath(t *testing.T) {
 	cancel()
 	if _, err := awaitPing(ctx, make(chan pingOutcome)); !errors.Is(err, context.Canceled) {
 		t.Fatalf("awaitPing() error = %v", err)
+	}
+}
+
+func TestNotifySanitizesBackendError(t *testing.T) {
+	raw := "control response included sensitive details"
+	(&backendRuntime{}).notify(ipn.Notify{ErrMessage: &raw})
+	var event healthEvent
+	if err := json.Unmarshal(<-engineEvents, &event); err != nil {
+		t.Fatal(err)
+	}
+	if event.Message != "backend reported an error" {
+		t.Fatalf("health message = %q", event.Message)
 	}
 }
 

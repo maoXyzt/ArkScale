@@ -58,7 +58,7 @@ func arkscale_start(configJSON *C.char) C.int {
 			SchemaVersion: eventSchemaVersion,
 			Type:          "health",
 			Severity:      "error",
-			Message:       err.Error(),
+			Message:       "backend startup failed",
 		})
 		return resultInternalError
 	}
