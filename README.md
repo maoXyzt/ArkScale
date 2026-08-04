@@ -100,6 +100,7 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 - [实施设计](docs/design.md)：版本锁定、架构、C ABI、构建命令、生命周期、平台补丁和 P0–P5 验收标准。
 - [事实核对与开源项目验证](docs/implementation-research.md)：逐项证据、源码链接、ClashBox 与 Tailscale Android 的可借鉴范围，以及仍待 ArkScale 验证的事项。
 - [合规与安全交付](docs/compliance.md)：staged-secret 门禁、SBOM/许可证产物和发布阻塞项。
+- [设备验证矩阵](docs/device-matrix.md)：已验证真机、通过门禁和明确未覆盖项。
 
 ## 仓库状态
 

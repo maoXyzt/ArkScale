@@ -196,3 +196,4 @@
 - `go list -m all` 包含 Tailscale 的 lint、测试和发布工具，不代表 engine 运行时闭包；SBOM 必须用 `GOOS=openharmony GOARCH=arm64` 的 `go list -deps` 生成。
 - 最终 SPDX 包含 52 个实际 Go 依赖模块，许可证 manifest 有 55 条第三方原文映射；未发现缺失的模块许可证文件。
 - 用户确认 ArkScale 采用 MIT 许可证，版权主体登记为 `ArkScale contributors`；SPDX 与许可证原文包同步声明 MIT，第三方依赖仍保留各自许可证。
+- 首版设备矩阵只登记完成端到端门禁的 Mate X7，并显式保留其他 API 22+ 型号、24 小时长稳、低内存与 release 分发空白；单设备结果不外推为全面兼容。

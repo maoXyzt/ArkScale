@@ -168,6 +168,7 @@
 | P5 合规依赖范围修复前 | `go list -m all` | 仅包含 engine 运行时依赖 | 错误包含大量 lint、测试和发布工具 | red |
 | P5 SPDX 与许可证包 | OpenHarmony 目标 `go list -deps` | 运行时模块完整且许可证原文无缺失 | 52 个 Go 模块、55 条许可证映射，P0 生成通过 | pass |
 | P5 项目许可证 | 用户确认开源许可证 | 根许可证与 SPDX 一致 | MIT，版权主体为 ArkScale contributors | pass |
+| P5 设备矩阵 | 汇总已完成真机证据 | 区分已验证设备与覆盖空白 | Mate X7 门禁入表，设备标识与网络信息未入库 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
