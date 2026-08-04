@@ -185,3 +185,4 @@
 - 清理版真机 30 秒前后 FD `47→46`、RSS `188552→188756 KB`，两次 peer 探针均通过，线程与 goroutine 回落；短时资源门禁通过，24 小时长稳仍待执行。
 - 清理版 Stop 显示 Backend、Extension 与 Native 全部停止，`dupOwnership/engineTun/sameProcess` 均通过；随后以新 VPN 进程启动，动态配置恢复，`protected/tunDup/engineTun/sameProcess` 与 Backend RUNNING 均通过。
 - 从最近任务划掉并重开 UI 后，独立 VPN 进程保持原 PID 和连续 uptime，页面通过共享状态通道恢复 READY/RUNNING；peer 继续通过且 FD 保持 46。
+- 系统强制停止后页面状态干净归零；重新 Start 创建新 VPN 进程，无需再次登录即可恢复动态配置、Backend RUNNING 和 peer 数据面，FD 保持 46。
