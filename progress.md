@@ -160,6 +160,7 @@
 | P5 SIG Go 资源修复 | 关闭接口枚举 socket 并释放 `getifaddrs` | FD/RSS 不持续增长且 peer 可用 | FD `47 → 46`、RSS `+204 KB`，两次 peer 均通过 | pass |
 | P5 清理版构建 | `build:p0`、`build:hap`、`build:p1` | 补丁可重放，AArch64 engine 与 HAP 校验通过 | 三条构建链均通过 | pass |
 | P5 清理版生命周期 | 真机 Stop 后重新 Start | 完整停止并以新 VPN 进程恢复动态配置 | Stop/Start、Backend、TUN 与 FD 所有权门禁全部通过 | pass |
+| P5 UI 任务重建 | 划掉 UI 后重新打开 | 独立 VPN 不重启且页面恢复状态 | VPN PID/uptime 连续，Backend、TUN、peer 与 FD 均正常 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
