@@ -9,6 +9,7 @@ export GOMODCACHE="${GOMODCACHE:-$ARKSCALE_ROOT/.cache/go-mod}"
 export GOPATH="${GOPATH:-$ARKSCALE_ROOT/.cache/gopath}"
 export GOENV=off
 ARKSCALE_OUTPUT="$ARKSCALE_ROOT/build/compliance"
+ARKSCALE_LICENSE_REGISTRY="$ARKSCALE_ROOT/compliance/go-modules.tsv"
 mkdir -p "$ARKSCALE_ROOT/build"
 ARKSCALE_TMP=$(mktemp -d "$ARKSCALE_ROOT/build/compliance.XXXXXX")
 trap 'rm -rf "$ARKSCALE_TMP"' EXIT HUP INT TERM
@@ -61,17 +62,26 @@ printf '%s\n' \
   'Relationship: SPDXRef-OpenHarmony-SIG-Go BUILD_TOOL_OF SPDXRef-ArkScale' \
   '' > "$ARKSCALE_SPDX"
 
-printf '%s\t%s\t%s\n' \
+printf '%s\t%s\t%s\t%s\n' \
   'ArkScale' \
   "$ARKSCALE_VERSION" \
+  'license' \
   'ArkScale-LICENSE' > "$ARKSCALE_MANIFEST"
 cp "$ARKSCALE_ROOT/LICENSE" "$ARKSCALE_TMP/licenses/ArkScale-LICENSE"
 cp "$ARKSCALE_ROOT/third_party/ohos_golang_go/LICENSE" \
   "$ARKSCALE_TMP/licenses/OpenHarmony-SIG-Go-LICENSE"
-printf '%s\t%s\t%s\n' \
+cp "$ARKSCALE_ROOT/third_party/ohos_golang_go/PATENTS" \
+  "$ARKSCALE_TMP/licenses/OpenHarmony-SIG-Go-PATENTS"
+printf '%s\t%s\t%s\t%s\n' \
   'OpenHarmony-SIG Go' \
   '2d8b23f6923100d8c90d8add9299da2c9d032a20' \
+  'license' \
   'OpenHarmony-SIG-Go-LICENSE' >> "$ARKSCALE_MANIFEST"
+printf '%s\t%s\t%s\t%s\n' \
+  'OpenHarmony-SIG Go' \
+  '2d8b23f6923100d8c90d8add9299da2c9d032a20' \
+  'patents' \
+  'OpenHarmony-SIG-Go-PATENTS' >> "$ARKSCALE_MANIFEST"
 
 (cd "$ARKSCALE_ROOT/engine" && env \
   GOTOOLCHAIN=local \
@@ -92,14 +102,21 @@ while IFS='|' read -r ARKSCALE_MODULE ARKSCALE_VERSION ARKSCALE_DIRECTORY; do
   if [ "$ARKSCALE_MODULE" = 'tailscale.com' ]; then
     ARKSCALE_VERSION='e4d64c6faf827a308ec20b39651225178e6743c0'
   fi
+  if ! ARKSCALE_LICENSE_ID=$(awk -F '\t' -v module="$ARKSCALE_MODULE" -v version="$ARKSCALE_VERSION" '
+    $1 == module && $2 == version { print $3; found++ }
+    END { if (found != 1) exit 1 }
+  ' "$ARKSCALE_LICENSE_REGISTRY"); then
+    printf '%s\t%s\t%s\n' "$ARKSCALE_MODULE" "$ARKSCALE_VERSION" 'registry' >> "$ARKSCALE_MISSING"
+    ARKSCALE_LICENSE_ID=NOASSERTION
+  fi
   printf '%s\n' \
     "PackageName: $ARKSCALE_MODULE" \
     "SPDXID: SPDXRef-$ARKSCALE_ID" \
     "PackageVersion: ${ARKSCALE_VERSION:-NOASSERTION}" \
     'PackageDownloadLocation: NOASSERTION' \
     'FilesAnalyzed: false' \
-    'PackageLicenseConcluded: NOASSERTION' \
-    'PackageLicenseDeclared: NOASSERTION' \
+    "PackageLicenseConcluded: $ARKSCALE_LICENSE_ID" \
+    "PackageLicenseDeclared: $ARKSCALE_LICENSE_ID" \
     'PackageCopyrightText: NOASSERTION' \
     "Relationship: SPDXRef-ArkScale DEPENDS_ON SPDXRef-$ARKSCALE_ID" \
     '' >> "$ARKSCALE_SPDX"
@@ -107,22 +124,45 @@ while IFS='|' read -r ARKSCALE_MODULE ARKSCALE_VERSION ARKSCALE_DIRECTORY; do
   ARKSCALE_LICENSE_FOUND=false
   for ARKSCALE_LICENSE in \
     "$ARKSCALE_DIRECTORY"/LICENSE* \
-    "$ARKSCALE_DIRECTORY"/COPYING* \
-    "$ARKSCALE_DIRECTORY"/NOTICE*
+    "$ARKSCALE_DIRECTORY"/COPYING*
   do
     [ -f "$ARKSCALE_LICENSE" ] || continue
     ARKSCALE_LICENSE_FOUND=true
     ARKSCALE_LICENSE_NAME="$ARKSCALE_ID-$(basename -- "$ARKSCALE_LICENSE")"
     cp "$ARKSCALE_LICENSE" "$ARKSCALE_TMP/licenses/$ARKSCALE_LICENSE_NAME"
-    printf '%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\n' \
       "$ARKSCALE_MODULE" \
       "${ARKSCALE_VERSION:-NOASSERTION}" \
+      'license' \
       "$ARKSCALE_LICENSE_NAME" >> "$ARKSCALE_MANIFEST"
+  done
+  for ARKSCALE_NOTICE in \
+    "$ARKSCALE_DIRECTORY"/NOTICE* \
+    "$ARKSCALE_DIRECTORY"/PATENTS*
+  do
+    [ -f "$ARKSCALE_NOTICE" ] || continue
+    ARKSCALE_NOTICE_NAME="$ARKSCALE_ID-$(basename -- "$ARKSCALE_NOTICE")"
+    ARKSCALE_NOTICE_KIND=notice
+    case "$(basename -- "$ARKSCALE_NOTICE")" in
+      PATENTS*) ARKSCALE_NOTICE_KIND=patents ;;
+    esac
+    cp "$ARKSCALE_NOTICE" "$ARKSCALE_TMP/licenses/$ARKSCALE_NOTICE_NAME"
+    printf '%s\t%s\t%s\t%s\n' \
+      "$ARKSCALE_MODULE" \
+      "${ARKSCALE_VERSION:-NOASSERTION}" \
+      "$ARKSCALE_NOTICE_KIND" \
+      "$ARKSCALE_NOTICE_NAME" >> "$ARKSCALE_MANIFEST"
   done
   if [ "$ARKSCALE_LICENSE_FOUND" = false ]; then
     printf '%s\t%s\n' "$ARKSCALE_MODULE" "${ARKSCALE_VERSION:-NOASSERTION}" >> "$ARKSCALE_MISSING"
   fi
 done < "$ARKSCALE_MODULES"
+
+ARKSCALE_REGISTRY_COUNT=$(sed '/^#/d; /^[[:space:]]*$/d' "$ARKSCALE_LICENSE_REGISTRY" | wc -l | tr -d ' ')
+ARKSCALE_MODULE_COUNT=$(grep -c '^[^|]' "$ARKSCALE_MODULES")
+if [ "$ARKSCALE_REGISTRY_COUNT" != "$ARKSCALE_MODULE_COUNT" ]; then
+  printf '%s\t%s\t%s\n' "$ARKSCALE_REGISTRY_COUNT" "$ARKSCALE_MODULE_COUNT" 'registry-count' >> "$ARKSCALE_MISSING"
+fi
 
 if [ -s "$ARKSCALE_MISSING" ]; then
   echo "error: module license files missing:" >&2
