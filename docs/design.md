@@ -49,7 +49,8 @@
 | HarmonyOS | compatible SDK API 22，compile SDK API 24 | API 22 提供 `protectProcessNet()`；商业版目标机仍需独立验证。 |
 | OpenHarmony | 5.0.0 Release+ 作为开源对照 | Go SIG 提案给出的最低验证基线；不等同于商业 HarmonyOS NEXT。 |
 | Go | `ohos_golang_go` `release-branch.go1.24`，commit `2d8b23f6923100d8c90d8add9299da2c9d032a20` | 仓库 `VERSION` 为 `go1.24.5`；目标为 `openharmony/arm64`。这是补丁分支，不是上游 Go 官方支持。 |
-| Tailscale | v1.82.5，commit `e4d64c6faf827a308ec20b39651225178e6743c0` | 冻结的移植候选版本；是否能由上述 Go 分支编译并运行属于 P0/P3 验收项，不写成既成事实。 |
+| Tailscale | v1.82.5，commit `e4d64c6faf827a308ec20b39651225178e6743c0` | 已通过 P0/P3 与目标真机门禁的冻结基线；升级必须重跑验收。 |
+| P0 builder | `golang:1.24.5-bookworm@sha256:9aba206b3974f93f7056304c991c9cc1f843c939159d9305571ab9766c9ccdf6` | Docker Official Images 的 linux/amd64 manifest；不依赖可变标签。 |
 | 构建主机 | Linux x86_64 | 与 OpenHarmony-SIG Go 已公开的交叉编译验证环境一致。DevEco/HAP 打包可按 SDK 支持的平台另行执行。 |
 | 目标 ABI | `arm64-v8a` / `aarch64-linux-ohos` | 首版不做 x86_64 模拟器和 32 位。 |
 

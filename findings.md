@@ -59,6 +59,7 @@
 - 用户容器通过 `goproxy.cn` 成功下载固定 `go4.org/mem` module，返回 zip 路径、`Sum` 与 `GoModSum` 并打印 `PASS`；Google module proxy 路由故障假设成立，Rancher 全局 HTTPS 故障被排除。
 - `scripts/build-p0-docker.sh` 在容器边界传入 `GOPROXY=${GOPROXY:-https://goproxy.cn,direct}`，因此默认值适配当前网络且调用者可用 Go 标准变量覆盖；未设置 `GOSUMDB=off`。
 - 完整 P0 已通过：产物 `build/arm64-v8a/libarkscale_engine.so` 为约 28 MiB 的 ELF64/AArch64 shared object，`NEEDED` 只有 `libc.so`，最终脚本输出 `P0 engine verification passed`。
+- P0 原先只固定 `golang:1.24.5-bookworm` 标签，不能抵抗标签漂移；现固定 Docker Official Images 返回的 linux/amd64 manifest digest，并提升本地 builder 标签以强制重建。固定 digest 的完整 P0、ELF/ABI 与合规包生成门禁通过。
 - 尾部 `error: write on a pipe with no reader` 不是产物错误；宿主使用同类 OHOS `llvm-readelf --dyn-syms | grep -q` 对六个符号均稳定复现。`grep -q` 命中后提前退出，producer 收到 EPIPE。避免早退并复用动态符号表即可消除噪声。
 - 修复后 engine 与 HAP 校验均在宿主实跑通过且无 SIGPIPE 噪声；同类 `llvm-* | grep -q` sibling 已清除。
 - 设计中的 Linux build-tag 自动扫描和运行时隔离属于 P3 backend 门禁；P0 已以固定闭包成功产出并校验 `.so`，无需为了尚未运行的 backend 提前 fork Tailscale。

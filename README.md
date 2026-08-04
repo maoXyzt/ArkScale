@@ -47,7 +47,7 @@ pnpm run verify:hap
 
 未签名输出位于 `entry/build/default/outputs/default/entry-default-unsigned.hap`；配置本地 Signing Configs 后还会生成 `entry-default-signed.hap`。签名材料不得提交。
 
-P0 必须在 linux/amd64 容器中运行，并挂载已解压的 Linux OHOS SDK；目录下应存在 `native/llvm/bin/clang`：
+P0 必须在 linux/amd64 容器中运行，并挂载已解压的 Linux OHOS SDK；builder 固定到 Go 1.24.5 Bookworm 的 amd64 manifest digest，目录下应存在 `native/llvm/bin/clang`：
 
 ```bash
 ARKSCALE_LINUX_SDK=/absolute/path/to/linux-sdk \

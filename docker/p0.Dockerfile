@@ -1,4 +1,4 @@
-FROM golang:1.24.5-bookworm
+FROM golang:1.24.5-bookworm@sha256:9aba206b3974f93f7056304c991c9cc1f843c939159d9305571ab9766c9ccdf6
 
 WORKDIR /workspace
 

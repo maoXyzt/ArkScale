@@ -3,7 +3,7 @@ set -eu
 
 ARKSCALE_ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 : "${ARKSCALE_LINUX_SDK:?set ARKSCALE_LINUX_SDK to the extracted Linux OHOS SDK directory}"
-ARKSCALE_P0_IMAGE=${ARKSCALE_P0_IMAGE:-arkscale-p0:go1.24.5}
+ARKSCALE_P0_IMAGE=${ARKSCALE_P0_IMAGE:-arkscale-p0:go1.24.5-r1}
 
 if [ ! -x "$ARKSCALE_LINUX_SDK/native/llvm/bin/clang" ]; then
   echo "error: expected $ARKSCALE_LINUX_SDK/native/llvm/bin/clang" >&2
