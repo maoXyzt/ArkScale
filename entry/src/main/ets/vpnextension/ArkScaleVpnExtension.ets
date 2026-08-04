@@ -287,6 +287,7 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
 
   private async applyVpnConfig(event: EngineEvent): Promise<void> {
     const generation = event.generation;
+    const previousGeneration = this.appliedGeneration;
     const localAddrs = event.localAddrs;
     const routes = event.routes;
     const nameservers = event.nameservers;
@@ -358,7 +359,7 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     }
     this.tunActive = true;
     this.appliedGeneration = generation;
-    this.publishStatus(`READY configGen=${generation}`);
+    this.publishStatus(`READY configGen=${generation} fromGen=${previousGeneration} routes=${routes.length} dns=${nameservers.length} search=${searchDomains.length}`);
   }
 
   private validPrefix(prefix: EnginePrefix): boolean {
