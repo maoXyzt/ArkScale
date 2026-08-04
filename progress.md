@@ -164,6 +164,9 @@
 | P5 强制停止恢复 | 系统强制停止后重新打开并 Start | 状态归零、身份持久化且数据面恢复 | 新 VPN 进程无需登录，Backend、TUN、peer 通过，FD 46 | pass |
 | P5 飞行模式恢复 | 飞行模式开启 30 秒后关闭 | 同一 VPN 进程恢复默认网络与全部数据面 | netId/switch 更新，peer、TCP、MagicDNS 通过，FD 46 | pass |
 | P5 设备重启恢复 | 重启设备后打开并 Start | 状态归零、身份持久化且全部数据面恢复 | 无需登录，Backend、TUN、peer、TCP、MagicDNS 通过，FD 45 | pass |
+| P5 staged-secret 门禁 | `.env`、签名材料、Signing Config 密码 | 本地凭据不进入提交 | 忽略规则与 staged diff 检查通过 | pass |
+| P5 合规依赖范围修复前 | `go list -m all` | 仅包含 engine 运行时依赖 | 错误包含大量 lint、测试和发布工具 | red |
+| P5 SPDX 与许可证包 | OpenHarmony 目标 `go list -deps` | 运行时模块完整且许可证原文无缺失 | 52 个 Go 模块、55 条许可证映射，P0 生成通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -201,6 +204,8 @@
 | 2026-08-03 | DERP 已恢复但 TSMP 无握手且 `tx=0` | 1 | 对照 pinned 官方启动顺序，补齐 `sys.Tun.Get().Start()` 并加入构建门禁 |
 | 2026-08-04 | Go 与系统均有 IPv6 配置，但原生 TCP 返回 `2301101` | 1 | 显式设置 IPv6 address family，并把 `hasGateway=false` 路由的 next-hop 从 `::` 改为空字符串 |
 | 2026-08-04 | VPN 进程 FD 持续增长 | 1 | 按 FD 类型和调用路径定位到 SIG Go 接口枚举未释放 socket/ifaddrs；在共享实现修复并完成真机 A/B |
+| 2026-08-04 | 首版 SBOM 包含大量开发工具依赖 | 1 | 从全模块图改为 OpenHarmony 目标的实际编译依赖闭包 |
+| 2026-08-04 | `go list` 缓存失败被 pipeline 成功状态掩盖 | 1 | 独立保存命令输出并先检查退出码，再执行排序和产物替换 |
 
 ## 当前诊断门禁
 - P0 已完成；实现不含 Tailscale 的最小 Go c-shared library，并接入现有 Node-API/HAP。

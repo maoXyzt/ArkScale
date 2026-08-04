@@ -188,3 +188,10 @@
 - 系统强制停止后页面状态干净归零；重新 Start 创建新 VPN 进程，无需再次登录即可恢复动态配置、Backend RUNNING 和 peer 数据面，FD 保持 46。
 - 飞行模式往返后同一 VPN 进程保持 READY/RUNNING，默认网络 netId 与 switch 计数按预期变化；peer、原生 TCP 和 MagicDNS 全部恢复，FD 保持 46。
 - 设备重启后页面状态干净归零；重新 Start 无需登录即可恢复动态配置和 Backend，peer、原生 TCP、MagicDNS 全部通过，FD 为 45。
+
+## P5 本地安全与合规（2026-08-04）
+
+- Tailscale FileStore 在应用私有目录以 `0600` 原子写入状态，跨进程 mailbox 也以 `0600` 创建；HAP 只声明 `INTERNET` 与 `GET_NETWORK_INFO`。
+- `.env` 原先未被忽略，已补齐忽略规则；staged-secret 门禁会拒绝环境文件、签名材料及 Signing Config 密码，避免本地调试签名误入提交。
+- `go list -m all` 包含 Tailscale 的 lint、测试和发布工具，不代表 engine 运行时闭包；SBOM 必须用 `GOOS=openharmony GOARCH=arm64` 的 `go list -deps` 生成。
+- 最终 SPDX 包含 52 个实际 Go 依赖模块，许可证 manifest 有 55 条原文映射；未发现缺失的模块许可证文件。ArkScale 根项目尚未选择许可证，保持明确交付阻塞。

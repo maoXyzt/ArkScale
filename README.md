@@ -99,6 +99,7 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 
 - [实施设计](docs/design.md)：版本锁定、架构、C ABI、构建命令、生命周期、平台补丁和 P0–P5 验收标准。
 - [事实核对与开源项目验证](docs/implementation-research.md)：逐项证据、源码链接、ClashBox 与 Tailscale Android 的可借鉴范围，以及仍待 ArkScale 验证的事项。
+- [合规与安全交付](docs/compliance.md)：staged-secret 门禁、SBOM/许可证产物和发布阻塞项。
 
 ## 仓库状态
 
@@ -120,6 +121,8 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 ## 安全
 
 不把 auth key、OAuth secret、节点私钥、可复用登录 URL 或签名材料写入源码、日志和仓库。移动客户端优先使用交互式登录；自动注册仅用于测试，并使用一次性、最小权限、可撤销的凭据。Tailscale 状态保存在应用私有目录。
+
+提交前运行 `pnpm run check:secrets`。P0 会在 `build/compliance/` 生成 SPDX SBOM 与第三方许可证原文包；这些产物应与对应 HAP 一起归档，不提交到仓库。
 
 ## 主要资料
 

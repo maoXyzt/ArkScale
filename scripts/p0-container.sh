@@ -17,3 +17,4 @@ export GOMAXPROCS="${GOMAXPROCS:-1}"
 (cd "$ARKSCALE_ROOT/engine" && /usr/local/go/bin/go test -buildvcs=false ./cmd/arkscale)
 "$ARKSCALE_ROOT/scripts/build-engine.sh"
 "$ARKSCALE_ROOT/scripts/verify-engine.sh"
+"$ARKSCALE_ROOT/scripts/generate-compliance.sh"
