@@ -4,6 +4,7 @@ set -eu
 ARKSCALE_ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 : "${ARKSCALE_LINUX_SDK:?set ARKSCALE_LINUX_SDK to the extracted Linux OHOS SDK directory}"
 ARKSCALE_P0_IMAGE=${ARKSCALE_P0_IMAGE:-arkscale-p0:go1.24.5-r1}
+ARKSCALE_SDK_META="$ARKSCALE_LINUX_SDK/native/oh-uni-package.json"
 
 if [ ! -x "$ARKSCALE_LINUX_SDK/native/llvm/bin/clang" ]; then
   echo "error: expected $ARKSCALE_LINUX_SDK/native/llvm/bin/clang" >&2
@@ -12,6 +13,10 @@ fi
 ARKSCALE_CLANG_TYPE=$(file "$ARKSCALE_LINUX_SDK/native/llvm/bin/clang")
 if ! echo "$ARKSCALE_CLANG_TYPE" | grep -Eq 'ELF 64-bit.*x86-64'; then
   echo "error: P0 requires the Linux x86_64 OHOS SDK; got: $ARKSCALE_CLANG_TYPE" >&2
+  exit 1
+fi
+if [ ! -f "$ARKSCALE_SDK_META" ] || ! grep -Eq '"apiVersion"[[:space:]]*:[[:space:]]*"24"' "$ARKSCALE_SDK_META"; then
+  echo "error: P0 requires the OHOS Native SDK API 24" >&2
   exit 1
 fi
 
