@@ -60,6 +60,23 @@ apply_dependency_patch() {
   fi
 }
 
+verify_patched_checkout() {
+  ARKSCALE_DEP_NAME=$1
+  ARKSCALE_DEP_DIR=$2
+  ARKSCALE_EXPECTED_DIFF_HASH=$3
+
+  if [ -n "$(git -C "$ARKSCALE_DEP_DIR" ls-files --others --exclude-standard)" ]; then
+    echo "error: $ARKSCALE_DEP_NAME checkout contains untracked source files" >&2
+    exit 1
+  fi
+  ARKSCALE_ACTUAL_DIFF_HASH=$(git -C "$ARKSCALE_DEP_DIR" diff --no-ext-diff --binary | \
+    git -C "$ARKSCALE_DEP_DIR" hash-object --stdin)
+  if [ "$ARKSCALE_ACTUAL_DIFF_HASH" != "$ARKSCALE_EXPECTED_DIFF_HASH" ]; then
+    echo "error: $ARKSCALE_DEP_NAME checkout differs from its registered patch" >&2
+    exit 1
+  fi
+}
+
 mkdir -p "$ARKSCALE_ROOT/third_party"
 fetch_pinned \
   "OpenHarmony-SIG Go" \
@@ -80,3 +97,11 @@ apply_dependency_patch \
   "Tailscale" \
   "$ARKSCALE_ROOT/third_party/tailscale" \
   "$ARKSCALE_ROOT/patches/tailscale/0001-openharmony-platform-seams.patch"
+verify_patched_checkout \
+  "OpenHarmony-SIG Go" \
+  "$ARKSCALE_ROOT/third_party/ohos_golang_go" \
+  "3948531a9f1e01e6b4682ce4dc75feacb4c0ac61"
+verify_patched_checkout \
+  "Tailscale" \
+  "$ARKSCALE_ROOT/third_party/tailscale" \
+  "aac4b322dce98b7018ceb62a1a5fc6fe9b2040b5"

@@ -56,7 +56,7 @@ ARKSCALE_LINUX_SDK=/absolute/path/to/linux-sdk \
 
 P0 默认使用 `https://goproxy.cn,direct` 下载公开 Go modules；可通过标准 `GOPROXY` 环境变量覆盖，checksum 校验保持启用。
 
-该命令会获取并校验固定的 Go/Tailscale commit，构建 SIG Go 工具链、编译 `c-shared` engine，并检查架构、动态依赖和 C ABI 导出符号。当前固定输入已经通过 P0。
+该命令会获取并校验固定的 Go/Tailscale commit，只允许仓库登记补丁产生的精确源码 diff，构建固定版本的 SIG Go 工具链、编译 `c-shared` engine，并检查架构、动态依赖和 C ABI 导出符号。当前固定输入已经通过 P0。
 
 固定 SIG Go 提交的 OpenHarmony `net.Interfaces()` 实现未关闭 ioctl socket，也未释放 `getifaddrs` 结果。仓库在 `patches/ohos-go/` 保存并由构建脚本幂等重放修复；修复已通过 P0 和短时真机 FD/RSS 回归。升级 SIG Go 时必须重新审计该补丁。
 

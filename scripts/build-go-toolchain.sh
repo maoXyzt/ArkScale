@@ -5,6 +5,7 @@ ARKSCALE_ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 ARKSCALE_GO_ROOT=${ARKSCALE_GO_ROOT:-$ARKSCALE_ROOT/third_party/ohos_golang_go}
 ARKSCALE_GO_BOOTSTRAP=${ARKSCALE_GO_BOOTSTRAP:-/usr/local/go}
 ARKSCALE_GO_COMMIT=2d8b23f6923100d8c90d8add9299da2c9d032a20
+ARKSCALE_GO_VERSION='go version go1.24.5 linux/amd64'
 
 if [ "$(uname -s)" != Linux ] || [ "$(uname -m)" != x86_64 ]; then
   echo "error: the pinned SIG Go toolchain must be built on linux/amd64" >&2
@@ -24,4 +25,9 @@ if [ ! -x "$ARKSCALE_GO_ROOT/bin/go" ]; then
   GOROOT_BOOTSTRAP="$ARKSCALE_GO_BOOTSTRAP" ./make.bash
 fi
 
-"$ARKSCALE_GO_ROOT/bin/go" version
+ARKSCALE_ACTUAL_GO_VERSION=$("$ARKSCALE_GO_ROOT/bin/go" version)
+if [ "$ARKSCALE_ACTUAL_GO_VERSION" != "$ARKSCALE_GO_VERSION" ]; then
+  echo "error: unexpected SIG Go toolchain: $ARKSCALE_ACTUAL_GO_VERSION" >&2
+  exit 1
+fi
+echo "$ARKSCALE_ACTUAL_GO_VERSION"

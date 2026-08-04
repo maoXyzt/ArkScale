@@ -61,6 +61,8 @@
 - 完整 P0 已通过：产物 `build/arm64-v8a/libarkscale_engine.so` 为约 28 MiB 的 ELF64/AArch64 shared object，`NEEDED` 只有 `libc.so`，最终脚本输出 `P0 engine verification passed`。
 - P0 原先只固定 `golang:1.24.5-bookworm` 标签，不能抵抗标签漂移；现固定 Docker Official Images 返回的 linux/amd64 manifest digest，并提升本地 builder 标签以强制重建。固定 digest 的完整 P0、ELF/ABI 与合规包生成门禁通过。
 - Linux SDK 的 `native/oh-uni-package.json` 明确报告 API 24；P0 入口现于 Docker 前同时校验该元数据与 x86_64 ELF Clang。合成 API 23 SDK 被预期拒绝，真实 API 24 SDK 的完整 P0 通过。
+- 仅检查依赖 HEAD commit 会漏过本地源码漂移；`fetch-deps.sh` 现校验应用补丁后的完整 tracked diff hash，并拒绝非忽略的未跟踪文件。额外 Tailscale 文件与已登记文件上的额外修改两类负例均被拒绝，恢复后完整 P0 通过。
+- 缓存的 SIG Go 工具链此前只要求可执行；现同时要求精确输出 `go version go1.24.5 linux/amd64`，避免复用明显不匹配的编译器。
 - 尾部 `error: write on a pipe with no reader` 不是产物错误；宿主使用同类 OHOS `llvm-readelf --dyn-syms | grep -q` 对六个符号均稳定复现。`grep -q` 命中后提前退出，producer 收到 EPIPE。避免早退并复用动态符号表即可消除噪声。
 - 修复后 engine 与 HAP 校验均在宿主实跑通过且无 SIGPIPE 噪声；同类 `llvm-* | grep -q` sibling 已清除。
 - 设计中的 Linux build-tag 自动扫描和运行时隔离属于 P3 backend 门禁；P0 已以固定闭包成功产出并校验 `.so`，无需为了尚未运行的 backend 提前 fork Tailscale。
