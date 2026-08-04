@@ -121,6 +121,50 @@
       "value": "VPN service"
     },
     {
+      "name": "state_running",
+      "value": "Running"
+    },
+    {
+      "name": "state_starting",
+      "value": "Starting"
+    },
+    {
+      "name": "state_login_required",
+      "value": "Sign-in required"
+    },
+    {
+      "name": "state_stopped",
+      "value": "Stopped"
+    },
+    {
+      "name": "state_ready",
+      "value": "Ready"
+    },
+    {
+      "name": "state_registering",
+      "value": "Registering"
+    },
+    {
+      "name": "state_not_registered",
+      "value": "Not registered"
+    },
+    {
+      "name": "state_attention",
+      "value": "Attention needed"
+    },
+    {
+      "name": "state_idle",
+      "value": "Idle"
+    },
+    {
+      "name": "network_wifi",
+      "value": "Wi-Fi"
+    },
+    {
+      "name": "network_cellular",
+      "value": "Cellular"
+    },
+    {
       "name": "diagnostics_title",
       "value": "Diagnostics"
     },

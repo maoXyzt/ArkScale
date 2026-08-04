@@ -383,8 +383,56 @@ struct Index {
     return $r('app.color.status_idle');
   }
 
+  private backendSummary(): ResourceStr {
+    if (this.engineStatus === 'RUNNING') {
+      return $r('app.string.state_running');
+    }
+    if (this.engineStatus === 'STARTING') {
+      return $r('app.string.state_starting');
+    }
+    if (this.engineStatus === 'LOGIN REQUIRED') {
+      return $r('app.string.state_login_required');
+    }
+    if (this.engineStatus === 'STOPPED' || this.engineStatus === 'NOT STARTED') {
+      return $r('app.string.state_stopped');
+    }
+    return this.engineStatus.includes('ERROR') ? $r('app.string.state_attention') : $r('app.string.state_idle');
+  }
+
+  private networkSummary(): ResourceStr {
+    if (this.networkStatus.includes('->WIFI') || this.networkStatus.includes('bearer=WIFI')) {
+      return $r('app.string.network_wifi');
+    }
+    if (this.networkStatus.includes('->CELLULAR') || this.networkStatus.includes('bearer=CELLULAR')) {
+      return $r('app.string.network_cellular');
+    }
+    if (this.networkStatus === 'REGISTERING') {
+      return $r('app.string.state_registering');
+    }
+    if (this.networkStatus === 'NOT REGISTERED') {
+      return $r('app.string.state_not_registered');
+    }
+    return this.networkStatus.includes('FAIL') ? $r('app.string.state_attention') : $r('app.string.state_idle');
+  }
+
+  private vpnServiceSummary(): ResourceStr {
+    if (this.extensionStatus.startsWith('READY')) {
+      return $r('app.string.state_ready');
+    }
+    if (this.extensionStatus === 'STARTING') {
+      return $r('app.string.state_starting');
+    }
+    if (this.extensionStatus.startsWith('STOPPED')) {
+      return $r('app.string.state_stopped');
+    }
+    if (this.extensionStatus.includes('FAIL')) {
+      return $r('app.string.state_attention');
+    }
+    return $r('app.string.state_idle');
+  }
+
   @Builder
-  private overviewRow(label: ResourceStr, value: string) {
+  private overviewRow(label: ResourceStr, value: ResourceStr) {
     Row({ space: 16 }) {
       Text(label)
         .fontSize(14)
@@ -602,13 +650,13 @@ struct Index {
           }
           .width('100%')
           .padding({ bottom: 8 })
-          this.overviewRow($r('app.string.overview_backend'), this.engineStatus)
+          this.overviewRow($r('app.string.overview_backend'), this.backendSummary())
           Divider()
             .color($r('app.color.border_soft'))
-          this.overviewRow($r('app.string.overview_network'), this.networkStatus)
+          this.overviewRow($r('app.string.overview_network'), this.networkSummary())
           Divider()
             .color($r('app.color.border_soft'))
-          this.overviewRow($r('app.string.overview_vpn_service'), this.extensionStatus)
+          this.overviewRow($r('app.string.overview_vpn_service'), this.vpnServiceSummary())
         }
         .width('100%')
         .padding(20)
