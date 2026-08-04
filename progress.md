@@ -172,6 +172,7 @@
 | P5 第三方许可证技术归类 | 52 个运行时模块及其原文 | SPDX 表达式、版本和依赖闭包一致 | 5 类表达式全部登记，NOTICE/PATENTS 一并归档 | pass |
 | P5 Release 日志隐私 | backend logger、启动/登录/Notify 错误路径 | 原始第三方日志和错误不进入系统日志或页面事件 | 复用 `logger.Discard`，健康事件固定消息 | pass |
 | P5 signed HAP 门禁 | unsigned/signed HAP 与最终 module manifest | 两类产物均通过 ABI/API/权限检查且无 `MANAGE_VPN` | `verify:hap` 同时校验两份产物 | pass |
+| P5 HAP 原生库新鲜度 | unsigned/signed HAP 与当前 stripped `.so` | 三个内嵌库必须逐字节一致，拒绝旧 signed HAP | 两类 HAP 全部比对并校验通过 | pass |
 | P5 P0 离线镜像复用 | 本地已有 `arkscale-p0:go1.24.5` 且 Docker Hub 不可达 | 不查询远端即可运行完整 P0 | Go 单测、AArch64 ELF/ABI 与合规包生成通过 | pass |
 | P5 P0 基础镜像固定 | Docker Official Images linux/amd64 manifest digest | Dockerfile 不依赖可变标签且旧 builder 不掩盖变更 | 新 `go1.24.5-r1` 镜像重建，完整 P0/合规门禁通过 | pass |
 | P5 Linux SDK 版本门禁 | Native SDK 元数据与 Clang | API 24 + ELF x86_64，不合规时 Docker 前失败 | API 23 负例被拒绝；API 24 完整 P0 通过 | pass |

@@ -5,9 +5,10 @@ ARKSCALE_ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 ARKSCALE_DEVECO_HOME=${DEVECO_STUDIO_HOME:-/Applications/DevEco-Studio.app}
 ARKSCALE_UNSIGNED_HAP="$ARKSCALE_ROOT/entry/build/default/outputs/default/entry-default-unsigned.hap"
 ARKSCALE_SIGNED_HAP="$ARKSCALE_ROOT/entry/build/default/outputs/default/entry-default-signed.hap"
-ARKSCALE_BRIDGE="$ARKSCALE_ROOT/entry/build/default/intermediates/stripped_native_libs/default/arm64-v8a/libarkscale_bridge.so"
-ARKSCALE_SMOKE="$ARKSCALE_ROOT/entry/libs/arm64-v8a/libarkscale_smoke.so"
-ARKSCALE_ENGINE="$ARKSCALE_ROOT/entry/libs/arm64-v8a/libarkscale_engine.so"
+ARKSCALE_LIB_DIR="$ARKSCALE_ROOT/entry/build/default/intermediates/stripped_native_libs/default/arm64-v8a"
+ARKSCALE_BRIDGE="$ARKSCALE_LIB_DIR/libarkscale_bridge.so"
+ARKSCALE_SMOKE="$ARKSCALE_LIB_DIR/libarkscale_smoke.so"
+ARKSCALE_ENGINE="$ARKSCALE_LIB_DIR/libarkscale_engine.so"
 ARKSCALE_READELF="$ARKSCALE_DEVECO_HOME/Contents/sdk/default/openharmony/native/llvm/bin/llvm-readelf"
 
 if [ ! -f "$ARKSCALE_UNSIGNED_HAP" ] || [ ! -f "$ARKSCALE_BRIDGE" ] || [ ! -f "$ARKSCALE_SMOKE" ] || [ ! -f "$ARKSCALE_ENGINE" ]; then
@@ -21,9 +22,12 @@ file "$ARKSCALE_ENGINE" | grep -E 'ELF 64-bit.*ARM aarch64' >/dev/null
 
 verify_hap() {
   ARKSCALE_HAP=$1
-  unzip -l "$ARKSCALE_HAP" | grep 'libs/arm64-v8a/libarkscale_bridge.so' >/dev/null
-  unzip -l "$ARKSCALE_HAP" | grep 'libs/arm64-v8a/libarkscale_smoke.so' >/dev/null
-  unzip -l "$ARKSCALE_HAP" | grep 'libs/arm64-v8a/libarkscale_engine.so' >/dev/null
+  for ARKSCALE_LIB in libarkscale_bridge.so libarkscale_smoke.so libarkscale_engine.so; do
+    if ! unzip -p "$ARKSCALE_HAP" "libs/arm64-v8a/$ARKSCALE_LIB" | cmp - "$ARKSCALE_LIB_DIR/$ARKSCALE_LIB"; then
+      echo "error: $ARKSCALE_HAP contains stale $ARKSCALE_LIB" >&2
+      exit 1
+    fi
+  done
   ARKSCALE_MODULE=$(unzip -p "$ARKSCALE_HAP" module.json)
   printf '%s\n' "$ARKSCALE_MODULE" | grep '"bundleName":"com.arkscale.client"' >/dev/null
   printf '%s\n' "$ARKSCALE_MODULE" | grep '"name":"ohos.permission.INTERNET"' >/dev/null

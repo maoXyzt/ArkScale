@@ -206,4 +206,5 @@
 - 固定 Tailscale 提交的 `LocalBackend.Logout` 仅在控制面登出成功后删除当前 profile；ArkScale 因此保留普通 Stop 的本地身份，并新增显式 Logout。Logout 期间抑制 `NeedsLogin` 自动拉起交互登录，失败时保持 backend/VPN 运行，成功时才关闭 engine 与 VPN。
 - 显式 Logout 已通过 Go 单测、P0 AArch64 构建、ArkTS/HAP 构建以及 unsigned/signed HAP ABI 校验；真机门禁会删除当前身份，尚未在未获明确同意时执行。
 - Logout 属于破坏性操作，页面使用原生 `UIContext.showAlertDialog` 二次确认；取消按钮默认聚焦且允许点击遮罩取消，避免误触删除身份。
+- HAP 校验原先只确认三个原生库条目存在，旧 signed HAP 仍可能误通过；现把 unsigned/signed HAP 内每个 ArkScale `.so` 与当前 stripped 产物逐字节比较，再执行 ABI/API/权限检查。
 - alpine 重启 tailscale 服务后 CLI/daemon 不再报告版本不一致；后续 peer、TCP 与 MagicDNS 回归通过，测试 peer 版本门禁已对齐。

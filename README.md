@@ -45,7 +45,7 @@ pnpm run build:hap
 pnpm run verify:hap
 ```
 
-未签名输出位于 `entry/build/default/outputs/default/entry-default-unsigned.hap`；配置本地 Signing Configs 后还会生成 `entry-default-signed.hap`。签名材料不得提交。
+未签名输出位于 `entry/build/default/outputs/default/entry-default-unsigned.hap`；配置本地 Signing Configs 后还会生成 `entry-default-signed.hap`。`verify:hap` 会逐字节确认两类 HAP 内嵌的是当前 stripped 原生库，拒绝残留旧产物；签名材料不得提交。
 
 P0 必须在 linux/amd64 容器中运行，并挂载已解压的 Linux OHOS SDK API 24；脚本会在启动容器前校验 SDK 元数据和 Clang 架构，builder 固定到 Go 1.24.5 Bookworm 的 amd64 manifest digest：
 
