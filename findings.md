@@ -193,6 +193,8 @@
 - 系统强制停止后页面状态干净归零；重新 Start 创建新 VPN 进程，无需再次登录即可恢复动态配置、Backend RUNNING 和 peer 数据面，FD 保持 46。
 - 飞行模式往返后同一 VPN 进程保持 READY/RUNNING，默认网络 netId 与 switch 计数按预期变化；peer、原生 TCP 和 MagicDNS 全部恢复，FD 保持 46。
 - 设备重启后页面状态干净归零；重新 Start 无需登录即可恢复动态配置和 Backend，peer、原生 TCP、MagicDNS 全部通过，FD 为 45。
+- 2026-08-05 使用当前签名 HAP 连续完成 5 轮完整 VPN/backend 启停；启动进程 PID 依次为 `24478`、`26491`、`30775`、`31460`、`32836`，每轮均为 Backend RUNNING 且 `protected/tunDup/engineTun/sameProcess` 全部 PASS，停止后均为 Backend STOPPED 且 `dupOwnership/engineTun/sameProcess` 全部 PASS。
+- 第二轮同时复验测试 peer：TSMP 经直连通过，Harmony 原生 TCP 22 通过，MagicDNS 解析到预期 Tailscale IP；该轮资源快照为 RSS `194092 KB`、FD `47`、线程 `37`、goroutine `71`。
 
 ## P5 本地安全与合规（2026-08-04）
 

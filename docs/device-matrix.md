@@ -16,6 +16,7 @@
 | 同上 | 同上 | DERP/直连、MagicDNS、IPv4/IPv6 peer TCP、Wi-Fi/蜂窝切换 | PASS |
 | 同上 | 同上 | UI 任务重建、强制停止、飞行模式、设备重启恢复 | PASS |
 | 同上 | 同上 | 30 秒资源回归：FD `47→46`、RSS `+204 KB` | PASS |
+| 同上 | 同上 | 5 轮连续 VPN/backend 完整启停；每轮启动和 TUN FD 回收门禁 | PASS |
 
 设备序列号、tailnet 标识、公网 endpoint 和签名信息不进入矩阵。
 

@@ -8,11 +8,11 @@ ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自�
 
 ## 当前判断
 
-这条路线已通过最小客户端可用性门禁，但还不能宣称“已完整支持 HarmonyOS NEXT”。截至 2026-08-04，证据边界如下：
+这条路线已通过最小客户端可用性门禁，但还不能宣称“已完整支持 HarmonyOS NEXT”。截至 2026-08-05，证据边界如下：
 
 | 层级 | 已确认 | 尚未确认 |
 | --- | --- | --- |
-| HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建、控制面配置重建、peer TSMP、DERP/直连、IPv4/IPv6 peer TCP、MagicDNS、Wi-Fi/蜂窝切换、强制停止、飞行模式和设备重启恢复门禁。 | 24 小时后台、低内存恢复和重复全链路启停。 |
+| HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建、控制面配置重建、peer TSMP、DERP/直连、IPv4/IPv6 peer TCP、MagicDNS、Wi-Fi/蜂窝切换、强制停止、飞行模式、设备重启恢复和 5 轮连续全链路启停门禁。 | 24 小时后台和低内存恢复。 |
 | Go | OpenHarmony-SIG Go 1.24 的 AArch64 `c-shared` 已通过加载、100 次启停、30 分钟 soak，并运行 Tailscale userspace engine 与 Quad100 netstack；已修复固定工具链中 `net.Interfaces()` 未释放资源的问题，短时真机资源回归稳定。 | 24 小时资源稳定性。 |
 | 相邻项目 | ClashBox 公开实现了 HarmonyOS NEXT 上的 Go `.so`、VPN Ability、TUN FD 与逐 socket `protect`，并提供 HAP Release。 | ClashBox 不是 Tailscale，不能证明 WireGuard、DERP、MagicDNS 和 Tailscale 控制面可用。 |
 | Tailscale | LocalBackend 已在真机完成交互式登录、`Running`、动态 `router.Config`/`dns.OSConfig`、重启免登录，并通过自建 DERP 与公网 UDP 直连到达在线 peer；DNS 开关和临时子网路由增删均触发 TUN 重建，重建后 peer、TCP 与 MagicDNS 继续可用。 | 登录取消、凭据吊销、控制面不可达恢复和显式 Logout 真机门禁。 |
@@ -121,7 +121,7 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 └── scripts/               # HAP、依赖、工具链和 engine 构建
 ```
 
-当前处于 P5：P0–P4 功能门禁和短时资源回归已通过，下一步验证 24 小时长稳、低内存、重复全链路启停及剩余控制面异常；完整产品 UI 和应用市场上架均不在范围内。
+当前处于 P5：P0–P4 功能门禁、短时资源回归和 5 轮连续全链路启停已通过，下一步验证 24 小时长稳、低内存及剩余控制面异常；完整产品 UI 和应用市场上架均不在范围内。
 
 ## 安全
 
