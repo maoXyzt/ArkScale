@@ -62,7 +62,7 @@ P0 默认使用 `https://goproxy.cn,direct` 下载公开 Go modules；可通过�
 
 `engine/cmd/arkscale` 已组装显式的 portable NetMon、CallbackRouter、userspace engine、Quad100 netstack 与 LocalBackend，并通过事件 ABI 向 VPN Extension 提供状态、登录 URL、地址、路由、DNS 和 MTU。
 
-P0 通过后，使用同一个 Linux SDK 和本地 builder 镜像构建 P1。该命令先生成不含 Tailscale 的 Go smoke library，再构建并校验 HAP：
+使用同一个 Linux SDK 构建 P1。该命令先重跑完整 P0 固定输入门禁，再生成不含 Tailscale 的 Go smoke library，最后构建并校验 HAP：
 
 ```bash
 ARKSCALE_LINUX_SDK="$HOME/harmony-linux/command-line-tools/sdk/default/openharmony" \

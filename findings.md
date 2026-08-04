@@ -68,6 +68,7 @@
 - 设计中的 Linux build-tag 自动扫描和运行时隔离属于 P3 backend 门禁；P0 已以固定闭包成功产出并校验 `.so`，无需为了尚未运行的 backend 提前 fork Tailscale。
 - 当前 HAP bridge 只有一个 `getVersion()` Node-API 函数，CMake 只链接 `libace_napi.z.so`；P1 可在这一现有 seam 直接导入最小 Go `.so` 并增加一个同步 smoke 调用，无需新建 addon 或抽象层。
 - P1 smoke library 不引用 Tailscale，只验证 SIG Go 的 c-shared 加载与基础 runtime 行为；CMake 将它作为 imported shared library 链入现有 bridge，HAP 校验同时检查两个 AArch64 ELF、导出符号和 `DT_NEEDED`。
+- `build:p1` 原先直接复用旧 `arkscale-p0:go1.24.5` 标签，能绕过新固定输入门禁并打包旧 engine；现复用 `build-p0-docker.sh` 先完成完整 P0，再构建 smoke、签名 HAP 和逐字节产物校验。新全链路实跑通过。
 - P1 容器沿用 P0 的非 root UID，因此必须显式使用 workspace 内的 `GOCACHE`、`GOMODCACHE` 和 `GOPATH`；否则 Go 可能尝试写镜像用户目录。
 - Go 默认 `-buildvcs=auto` 会为 main package 查询所在仓库；P1 的 bind-mounted 父仓库查询返回 128。ArkScale 已在构建前单独验证 SIG Go/Tailscale 固定提交，本地 engine/smoke 产物不需要嵌入父仓库状态，因此两个 build 入口统一使用 `-buildvcs=false`。
 - P1 首次完整 HAP 构建通过，但 packaged bridge 的 dynamic section 含指向 `entry/libs/arm64-v8a` 的宿主绝对 `RUNPATH`。同目录 native libraries 由 HAP loader 解析，不应携带 build-tree 路径；HAP 验证必须拒绝任意 RPATH/RUNPATH。
