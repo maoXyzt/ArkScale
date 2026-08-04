@@ -2,7 +2,9 @@
 
 ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自用的 Tailscale 全设备 VPN 客户端。
 
-> 当前仓库已完成 P0–P4，最小客户端已通过目标真机端到端门禁；P5 长稳、安全与可交付性仍待完成。
+> 项目定位：仅供学习、研究与自部署。维护范围只包括开发者自行构建、签名并部署到自有设备；ArkScale 不提供应用市场发行包，也不会提交上架。该定位不改变仓库的 MIT 许可证授权。
+>
+> 当前仓库已完成 P0–P4，最小客户端已通过目标真机端到端门禁；P5 长稳、安全与自部署交付性仍待完成。
 
 ## 当前判断
 
@@ -99,7 +101,7 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 
 - [实施设计](docs/design.md)：版本锁定、架构、C ABI、构建命令、生命周期、平台补丁和 P0–P5 验收标准。
 - [事实核对与开源项目验证](docs/implementation-research.md)：逐项证据、源码链接、ClashBox 与 Tailscale Android 的可借鉴范围，以及仍待 ArkScale 验证的事项。
-- [合规与安全交付](docs/compliance.md)：staged-secret 门禁、SBOM/许可证产物和发布阻塞项。
+- [合规与安全交付](docs/compliance.md)：staged-secret 门禁、SBOM/许可证产物和自部署交付边界。
 - [设备验证矩阵](docs/device-matrix.md)：已验证真机、通过门禁和明确未覆盖项。
 
 ## 仓库状态
@@ -117,7 +119,7 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 └── scripts/               # HAP、依赖、工具链和 engine 构建
 ```
 
-当前处于 P5：P0–P4 功能门禁和短时资源回归已通过，下一步验证 24 小时长稳、异常恢复、安全与可交付性；完整产品 UI 仍不在范围内。
+当前处于 P5：P0–P4 功能门禁和短时资源回归已通过，下一步验证 24 小时长稳、剩余异常恢复、安全与自部署交付性；完整产品 UI 和应用市场上架均不在范围内。
 
 ## 安全
 
