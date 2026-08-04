@@ -3,12 +3,19 @@
 #include "arkscale_smoke.h"
 
 #include <atomic>
+#include <cerrno>
+#include <cstring>
 #include <fcntl.h>
 #include <new>
 #include <pthread.h>
 #include <stdio.h>
 #include <string>
+#include <sys/file.h>
+#include <sys/mman.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
 #include <unistd.h>
+#include <utility>
 
 static pthread_mutex_t vpnProbeMutex = PTHREAD_MUTEX_INITIALIZER;
 static int vpnProbeFd = -1;
@@ -16,6 +23,38 @@ static pid_t vpnExtensionPid = -1;
 static bool vpnProcessProtected = false;
 static uint64_t vpnTunGeneration = 0;
 static char vpnProbeStatus[128] = "IDLE";
+
+constexpr uint32_t PROBE_CHANNEL_MAGIC = 0x41524b53;
+constexpr size_t PROBE_CHANNEL_SLOT_COUNT = 4;
+constexpr size_t PROBE_CHANNEL_SLOT_SIZE = 64 * 1024;
+// ponytail: 4096 is ample for this client; raise it if observed FD use approaches the ceiling.
+constexpr rlim_t PROCESS_FD_SCAN_LIMIT = 4096;
+
+struct ProbeChannelSlot {
+    uint32_t sequence;
+    uint32_t length;
+    char data[PROBE_CHANNEL_SLOT_SIZE];
+};
+
+struct ProbeChannelFile {
+    uint32_t magic;
+    ProbeChannelSlot slots[PROBE_CHANNEL_SLOT_COUNT];
+};
+
+static pthread_mutex_t probeChannelMutex = PTHREAD_MUTEX_INITIALIZER;
+static int probeChannelFd = -1;
+static ProbeChannelFile* probeChannel = nullptr;
+static pthread_mutex_t probeChannelWatchMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t probeChannelWatchThread;
+static bool probeChannelWatchStarted = false;
+static uint32_t probeChannelWatchMask = 0;
+static uint32_t probeChannelSeenSequences[PROBE_CHANNEL_SLOT_COUNT]{};
+static std::atomic_bool probeChannelWatchRunning(false);
+
+struct ProbeChannelEvent {
+    int32_t key;
+    std::string data;
+};
 
 static pthread_mutex_t enginePumpMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t enginePumpThread;
@@ -57,6 +96,259 @@ static napi_value CreateError(napi_env env, const char* message)
     napi_create_string_utf8(env, message, NAPI_AUTO_LENGTH, &text);
     napi_create_error(env, nullptr, text, &error);
     return error;
+}
+
+static int32_t CountOpenFds()
+{
+    int32_t count = -1;
+    struct rlimit limit{};
+    if (getrlimit(RLIMIT_NOFILE, &limit) == 0) {
+        count = 0;
+        rlim_t maxFd = limit.rlim_cur < PROCESS_FD_SCAN_LIMIT ? limit.rlim_cur : PROCESS_FD_SCAN_LIMIT;
+        for (int fd = 0; fd < maxFd; ++fd) {
+            errno = 0;
+            if (fcntl(fd, F_GETFD) >= 0 || errno != EBADF) {
+                ++count;
+            }
+        }
+    }
+    return count;
+}
+
+static napi_value GetOpenFdCount(napi_env env, napi_callback_info)
+{
+    int32_t count = CountOpenFds();
+
+    napi_value value;
+    napi_create_int32(env, count, &value);
+    return value;
+}
+
+static napi_value InitProbeChannel(napi_env env, napi_callback_info info)
+{
+    size_t argc = 1;
+    napi_value argv[1];
+    size_t directoryLength = 0;
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc != 1 ||
+        napi_get_value_string_utf8(env, argv[0], nullptr, 0, &directoryLength) != napi_ok || directoryLength == 0 ||
+        directoryLength > 4096) {
+        napi_throw_type_error(env, nullptr, "initProbeChannel requires a files directory");
+        return nullptr;
+    }
+    std::string directory(directoryLength + 1, '\0');
+    if (napi_get_value_string_utf8(env, argv[0], &directory[0], directory.size(), &directoryLength) != napi_ok) {
+        napi_throw_type_error(env, nullptr, "unable to read probe channel directory");
+        return nullptr;
+    }
+    directory.resize(directoryLength);
+
+    pthread_mutex_lock(&probeChannelMutex);
+    bool initialized = probeChannel != nullptr;
+    if (!initialized) {
+        std::string path = directory + "/arkscale-probe-channel-v1";
+        int fd = open(path.c_str(), O_RDWR | O_CREAT, 0600);
+        if (fd >= 0 && flock(fd, LOCK_EX) == 0) {
+            struct stat status{};
+            bool reset = fstat(fd, &status) != 0 || status.st_size != sizeof(ProbeChannelFile);
+            if ((!reset || ftruncate(fd, sizeof(ProbeChannelFile)) == 0)) {
+                void* mapping = mmap(nullptr, sizeof(ProbeChannelFile), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+                if (mapping != MAP_FAILED) {
+                    ProbeChannelFile* file = static_cast<ProbeChannelFile*>(mapping);
+                    if (reset || file->magic != PROBE_CHANNEL_MAGIC) {
+                        memset(file, 0, sizeof(*file));
+                        file->magic = PROBE_CHANNEL_MAGIC;
+                    }
+                    probeChannelFd = fd;
+                    probeChannel = file;
+                    initialized = true;
+                }
+            }
+            flock(fd, LOCK_UN);
+        }
+        if (!initialized && fd >= 0) {
+            close(fd);
+        }
+    }
+    pthread_mutex_unlock(&probeChannelMutex);
+
+    napi_value value;
+    napi_get_boolean(env, initialized, &value);
+    return value;
+}
+
+static bool WriteProbeChannelSlot(int32_t key, const char* data, size_t length);
+
+static napi_value WriteProbeChannel(napi_env env, napi_callback_info info)
+{
+    size_t argc = 2;
+    napi_value argv[2];
+    int32_t key = -1;
+    size_t length = 0;
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc != 2 ||
+        napi_get_value_int32(env, argv[0], &key) != napi_ok || key < 0 || key >= PROBE_CHANNEL_SLOT_COUNT ||
+        napi_get_value_string_utf8(env, argv[1], nullptr, 0, &length) != napi_ok ||
+        length == 0 || length > PROBE_CHANNEL_SLOT_SIZE) {
+        napi_throw_type_error(env, nullptr, "invalid probe channel write");
+        return nullptr;
+    }
+    std::string data(length + 1, '\0');
+    if (napi_get_value_string_utf8(env, argv[1], &data[0], data.size(), &length) != napi_ok) {
+        napi_throw_type_error(env, nullptr, "unable to read probe channel payload");
+        return nullptr;
+    }
+    data.resize(length);
+
+    bool written = WriteProbeChannelSlot(key, data.data(), data.size());
+
+    napi_value value;
+    napi_get_boolean(env, written, &value);
+    return value;
+}
+
+static bool ReadProbeChannelSlot(int32_t key, std::string& data, uint32_t& sequence)
+{
+    data.clear();
+    if (probeChannel == nullptr) {
+        return false;
+    }
+    ProbeChannelSlot& slot = probeChannel->slots[key];
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        uint32_t before = __atomic_load_n(&slot.sequence, __ATOMIC_ACQUIRE);
+        uint32_t length = __atomic_load_n(&slot.length, __ATOMIC_RELAXED);
+        if ((before & 1U) != 0 || length == 0 || length > PROBE_CHANNEL_SLOT_SIZE) {
+            continue;
+        }
+        data.assign(slot.data, length);
+        uint32_t after = __atomic_load_n(&slot.sequence, __ATOMIC_ACQUIRE);
+        if (before == after) {
+            sequence = after;
+            return true;
+        }
+        data.clear();
+    }
+    return false;
+}
+
+static bool WriteProbeChannelSlot(int32_t key, const char* data, size_t length)
+{
+    if (key < 0 || key >= PROBE_CHANNEL_SLOT_COUNT || data == nullptr || length == 0 ||
+        length > PROBE_CHANNEL_SLOT_SIZE) {
+        return false;
+    }
+    pthread_mutex_lock(&probeChannelMutex);
+    bool written = probeChannel != nullptr;
+    if (written) {
+        ProbeChannelSlot& slot = probeChannel->slots[key];
+        uint32_t sequence = __atomic_load_n(&slot.sequence, __ATOMIC_RELAXED);
+        if ((sequence & 1U) != 0) {
+            ++sequence;
+        }
+        __atomic_store_n(&slot.sequence, sequence + 1, __ATOMIC_RELEASE);
+        memcpy(slot.data, data, length);
+        __atomic_store_n(&slot.length, static_cast<uint32_t>(length), __ATOMIC_RELAXED);
+        __atomic_store_n(&slot.sequence, sequence + 2, __ATOMIC_RELEASE);
+    }
+    pthread_mutex_unlock(&probeChannelMutex);
+    return written;
+}
+
+static void CallProbeChannelEvent(napi_env env, napi_value callback, void*, void* data)
+{
+    ProbeChannelEvent* event = static_cast<ProbeChannelEvent*>(data);
+    if (env != nullptr && callback != nullptr) {
+        napi_value undefined;
+        napi_value values[2];
+        napi_get_undefined(env, &undefined);
+        napi_create_int32(env, event->key, &values[0]);
+        napi_create_string_utf8(env, event->data.c_str(), event->data.size(), &values[1]);
+        napi_call_function(env, undefined, callback, 2, values, nullptr);
+    }
+    delete event;
+}
+
+static void* WatchProbeChannel(void* data)
+{
+    napi_threadsafe_function callback = static_cast<napi_threadsafe_function>(data);
+    while (probeChannelWatchRunning.load()) {
+        usleep(250000);
+        for (int32_t key = 0; key < PROBE_CHANNEL_SLOT_COUNT && probeChannelWatchRunning.load(); ++key) {
+            if ((probeChannelWatchMask & (1U << key)) == 0) {
+                continue;
+            }
+            std::string value;
+            uint32_t sequence = 0;
+            if (!ReadProbeChannelSlot(key, value, sequence) || sequence == probeChannelSeenSequences[key]) {
+                continue;
+            }
+            probeChannelSeenSequences[key] = sequence;
+            ProbeChannelEvent* event = new (std::nothrow) ProbeChannelEvent{key, std::move(value)};
+            if (event == nullptr ||
+                napi_call_threadsafe_function(callback, event, napi_tsfn_nonblocking) != napi_ok) {
+                delete event;
+                probeChannelWatchRunning.store(false);
+                break;
+            }
+        }
+    }
+    napi_release_threadsafe_function(callback, napi_tsfn_release);
+    return nullptr;
+}
+
+static napi_value StartProbeChannelWatch(napi_env env, napi_callback_info info)
+{
+    size_t argc = 2;
+    napi_value argv[2];
+    uint32_t mask = 0;
+    napi_valuetype callbackType;
+    if (napi_get_cb_info(env, info, &argc, argv, nullptr, nullptr) != napi_ok || argc != 2 ||
+        napi_get_value_uint32(env, argv[0], &mask) != napi_ok || mask == 0 || mask >= (1U << PROBE_CHANNEL_SLOT_COUNT) ||
+        napi_typeof(env, argv[1], &callbackType) != napi_ok || callbackType != napi_function) {
+        napi_throw_type_error(env, nullptr, "invalid probe channel watcher");
+        return nullptr;
+    }
+
+    pthread_mutex_lock(&probeChannelWatchMutex);
+    bool started = probeChannel != nullptr && !probeChannelWatchStarted;
+    if (started) {
+        napi_value resourceName;
+        napi_threadsafe_function callback = nullptr;
+        napi_create_string_utf8(env, "ArkScaleProbeChannel", NAPI_AUTO_LENGTH, &resourceName);
+        started = napi_create_threadsafe_function(env, argv[1], nullptr, resourceName, 16, 1, nullptr, nullptr,
+            nullptr, CallProbeChannelEvent, &callback) == napi_ok;
+        if (started) {
+            probeChannelWatchMask = mask;
+            for (size_t key = 0; key < PROBE_CHANNEL_SLOT_COUNT; ++key) {
+                probeChannelSeenSequences[key] = __atomic_load_n(&probeChannel->slots[key].sequence, __ATOMIC_ACQUIRE);
+            }
+            probeChannelWatchRunning.store(true);
+            started = pthread_create(&probeChannelWatchThread, nullptr, WatchProbeChannel, callback) == 0;
+            probeChannelWatchStarted = started;
+            if (!started) {
+                probeChannelWatchRunning.store(false);
+                napi_release_threadsafe_function(callback, napi_tsfn_abort);
+            }
+        }
+    }
+    pthread_mutex_unlock(&probeChannelWatchMutex);
+
+    napi_value value;
+    napi_get_boolean(env, started, &value);
+    return value;
+}
+
+static napi_value StopProbeChannelWatch(napi_env env, napi_callback_info)
+{
+    probeChannelWatchRunning.store(false);
+    pthread_mutex_lock(&probeChannelWatchMutex);
+    if (probeChannelWatchStarted) {
+        pthread_join(probeChannelWatchThread, nullptr);
+        probeChannelWatchStarted = false;
+    }
+    pthread_mutex_unlock(&probeChannelWatchMutex);
+
+    napi_value value;
+    napi_get_undefined(env, &value);
+    return value;
 }
 
 static void CallEngineEvent(napi_env env, napi_value callback, void*, void* data)
@@ -578,6 +870,11 @@ static napi_value Init(napi_env env, napi_value exports)
         {"stopVpnProbe", nullptr, StopVpnProbe, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getVpnProbeStatus", nullptr, GetVpnProbeStatus, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"getCurrentPid", nullptr, GetCurrentPid, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"getOpenFdCount", nullptr, GetOpenFdCount, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"initProbeChannel", nullptr, InitProbeChannel, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"writeProbeChannel", nullptr, WriteProbeChannel, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"startProbeChannelWatch", nullptr, StartProbeChannelWatch, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"stopProbeChannelWatch", nullptr, StopProbeChannelWatch, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startEngine", nullptr, StartEngine, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopEngine", nullptr, StopEngine, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"networkChanged", nullptr, NetworkChanged, nullptr, nullptr, nullptr, napi_default, nullptr},

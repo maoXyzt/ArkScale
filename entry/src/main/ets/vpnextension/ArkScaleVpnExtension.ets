@@ -1,11 +1,9 @@
-import { BusinessError, commonEventManager } from '@kit.BasicServicesKit';
+import { contextConstant } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { connection, VpnExtensionAbility, vpnExtension } from '@kit.NetworkKit';
 import bridge from 'libarkscale_bridge.so';
+import { COMMAND_KEY, ENGINE_KEY, NETWORK_KEY, ProbeChannel, STATUS_KEY } from '../ProbeChannel';
 
-const VPN_PROBE_EVENT = 'com.arkscale.client.VPN_PROBE_STATUS';
-const VPN_PROBE_COMMAND_EVENT = 'com.arkscale.client.VPN_PROBE_COMMAND';
-const ENGINE_EVENT = 'com.arkscale.client.ENGINE_EVENT';
-const BUNDLE_NAME = 'com.arkscale.client';
 
 interface EnginePrefix {
   ip: string;
@@ -27,11 +25,19 @@ interface EngineEvent {
   nameservers?: Array<string>;
   searchDomains?: Array<string>;
   mtu?: number;
+  process?: ProcessStats;
+}
+
+interface ProcessStats {
+  rssKb: number;
+  openFds: number;
+  threads: number;
+  goroutines: number;
 }
 
 export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   private connection?: vpnExtension.VpnConnection;
-  private commandSubscriber?: commonEventManager.CommonEventSubscriber;
+  private channel?: ProbeChannel;
   private networkMonitor?: connection.NetConnection;
   private networkMonitoring: boolean = false;
   private networkBearer: string = 'UNKNOWN';
@@ -49,15 +55,31 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   private lastStatus: string = 'ON_CREATE';
   private lastNetworkStatus?: string;
   private lastEngineEvent?: string;
+  private channelChanged = (key: number): void => {
+    if (key !== COMMAND_KEY) {
+      return;
+    }
+    const command = this.channel?.read(key);
+    if (command === undefined) {
+      return;
+    }
+    if (command === 'STOP' && !this.stopping) {
+      this.stopping = true;
+      this.stopProbe();
+    } else if (command === 'STATUS') {
+      this.publishSnapshot();
+    } else if (command.startsWith('PING|') && !this.stopping) {
+      this.probePeer(command.substring(5));
+    }
+  };
 
   onCreate(): void {
     this.initializeProbe();
   }
 
   onDestroy(): void {
-    if (this.commandSubscriber !== undefined) {
-      commonEventManager.unsubscribe(this.commandSubscriber);
-      this.commandSubscriber = undefined;
+    if (this.channel !== undefined) {
+      this.channel.stop();
     }
     if (!this.stopCompleted && !this.stopping) {
       this.stopping = true;
@@ -68,26 +90,9 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
 
   private async initializeProbe(): Promise<void> {
     try {
-      const subscriber = await commonEventManager.createSubscriber({
-        events: [VPN_PROBE_COMMAND_EVENT],
-        publisherBundleName: BUNDLE_NAME
-      });
-      this.commandSubscriber = subscriber;
-      commonEventManager.subscribe(subscriber,
-        (error: BusinessError, data: commonEventManager.CommonEventData) => {
-          if (error?.code) {
-            this.publishStatus(`COMMAND ERROR code=${error.code}`);
-            return;
-          }
-          if (data.data === 'STOP' && !this.stopping) {
-            this.stopping = true;
-            this.stopProbe();
-          } else if (data.data === 'STATUS') {
-            this.publishSnapshot();
-          } else if (data.data?.startsWith('PING|') && !this.stopping) {
-            this.probePeer(data.data.substring(5));
-          }
-        });
+      const channelContext = this.context.createAreaModeContext(contextConstant.AreaMode.EL1);
+      this.channel = new ProbeChannel(channelContext.filesDir, [COMMAND_KEY]);
+      this.channel.start(this.channelChanged);
       this.publishStatus('ON_CREATE');
       this.startWork = this.startProbe();
       await this.startWork;
@@ -381,7 +386,11 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
       return;
     }
     try {
-      this.publishEngineEvent(await bridge.probePeer(target), false);
+      const event = JSON.parse(await bridge.probePeer(target)) as EngineEvent;
+      if (event.process !== undefined) {
+        event.process.openFds = bridge.getOpenFdCount();
+      }
+      this.publishEngineEvent(JSON.stringify(event), false);
     } catch (error) {
       this.publishEngineEvent(JSON.stringify({
         schemaVersion: 1,
@@ -398,11 +407,8 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     if (remember) {
       this.lastEngineEvent = eventJson;
     }
-    commonEventManager.publish(ENGINE_EVENT, { bundleName: BUNDLE_NAME, data: eventJson }, (error: BusinessError) => {
-      if (error?.code) {
-        console.error(`Engine event publish failed: ${error.code}`);
-      }
-    });
+    this.channel?.publish(ENGINE_KEY, eventJson)
+      .catch((error: BusinessError): void => console.error(`Engine event publish failed: ${error.code ?? -1}`));
   }
 
   private publishStatus(status: string): void {
@@ -411,14 +417,10 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     } else {
       this.lastStatus = status;
     }
-    commonEventManager.publish(VPN_PROBE_EVENT, {
-      bundleName: BUNDLE_NAME,
-      data: `${status}|${bridge.getCurrentPid()}|${bridge.getVpnProbeStatus()}|${Math.floor((Date.now() - this.createdAtMs) / 60000)}`
-    }, (error: BusinessError) => {
-      if (error?.code) {
-        console.error(`VPN probe event publish failed: ${error.code}`);
-      }
-    });
+    const key = status.startsWith('NETWORK ') ? NETWORK_KEY : STATUS_KEY;
+    const payload = `${status}|${bridge.getCurrentPid()}|${bridge.getVpnProbeStatus()}|${Math.floor((Date.now() - this.createdAtMs) / 60000)}`;
+    this.channel?.publish(key, payload)
+      .catch((error: BusinessError): void => console.error(`VPN probe event publish failed: ${error.code ?? -1}`));
   }
 
   private publishSnapshot(): void {

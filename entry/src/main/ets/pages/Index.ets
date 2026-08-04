@@ -1,11 +1,9 @@
-import { common } from '@kit.AbilityKit';
-import { BusinessError, commonEventManager } from '@kit.BasicServicesKit';
+import { common, contextConstant } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { connection, socket, vpnExtension } from '@kit.NetworkKit';
 import bridge from 'libarkscale_bridge.so';
+import { COMMAND_KEY, ENGINE_KEY, NETWORK_KEY, ProbeChannel, STATUS_KEY } from '../ProbeChannel';
 
-const VPN_PROBE_EVENT = 'com.arkscale.client.VPN_PROBE_STATUS';
-const VPN_PROBE_COMMAND_EVENT = 'com.arkscale.client.VPN_PROBE_COMMAND';
-const ENGINE_EVENT = 'com.arkscale.client.ENGINE_EVENT';
 const BUNDLE_NAME = 'com.arkscale.client';
 
 interface EngineEvent {
@@ -50,17 +48,29 @@ struct Index {
   @State private magicDnsTarget: string = '';
   @State private magicDnsStatus: string = 'NOT TESTED';
   @State private resourceStatus: string = 'NOT MEASURED';
-  private subscriber?: commonEventManager.CommonEventSubscriber;
+  private channel?: ProbeChannel;
+  private channelSubscribed: boolean = false;
   private stopRequested: boolean = false;
+  private channelChanged = (key: number): void => {
+    const payload = this.channel?.read(key);
+    if (payload === undefined) {
+      return;
+    }
+    if (key === ENGINE_KEY) {
+      this.handleEngineEvent(payload);
+    } else if (key === STATUS_KEY || key === NETWORK_KEY) {
+      this.handleVpnStatus(payload);
+    }
+  };
 
   aboutToAppear(): void {
     this.subscribeVpnEvents();
   }
 
   aboutToDisappear(): void {
-    if (this.subscriber !== undefined) {
-      commonEventManager.unsubscribe(this.subscriber);
-      this.subscriber = undefined;
+    if (this.channel !== undefined && this.channelSubscribed) {
+      this.channel.stop();
+      this.channelSubscribed = false;
     }
   }
 
@@ -70,59 +80,57 @@ struct Index {
 
   private async subscribeVpnEvents(): Promise<void> {
     try {
-      const subscriber = await commonEventManager.createSubscriber({
-        events: [VPN_PROBE_EVENT, ENGINE_EVENT],
-        publisherBundleName: BUNDLE_NAME
-      });
-      this.subscriber = subscriber;
-      commonEventManager.subscribe(subscriber,
-        (error: BusinessError, data: commonEventManager.CommonEventData) => {
-          if (error?.code) {
-            this.extensionStatus = `EVENT ERROR code=${error.code}`;
-            return;
-          }
-          if (data.event === ENGINE_EVENT) {
-            if (data.data !== undefined) {
-              this.handleEngineEvent(data.data);
-            }
-            return;
-          }
-          const payload = data.data;
-          if (payload !== undefined) {
-            const parts = payload.split('|');
-            const status = parts[0];
-            const extensionPid = Number(parts[1]);
-            const uptimeMinutes = Number(parts[3]);
-            this.vpnNativeStatus = parts[2];
-            if (status.startsWith('NETWORK ')) {
-              this.networkStatus = status.substring(8);
-            } else {
-              this.extensionStatus = `${status} uptimeMin=${uptimeMinutes} pid=${extensionPid} process=${extensionPid === this.uiPid ? 'SAME' : 'SEPARATE'}`;
-              if (status === 'STOPPED' && this.stopRequested) {
-                this.stopRequested = false;
-                this.finishVpnStop();
-              } else if (status.startsWith('STOP FAIL') && this.stopRequested) {
-                this.stopRequested = false;
-                this.controlStatus = 'STOP FAILED IN EXTENSION';
-              }
-            }
-          }
-        });
+      const channel = await this.getChannel();
+      if (!this.channelSubscribed) {
+        channel.start(this.channelChanged);
+        this.channelSubscribed = true;
+      }
       this.requestStatus();
     } catch (error) {
       this.extensionStatus = `SUBSCRIBE FAILED code=${(error as BusinessError).code}`;
     }
   }
 
-  private requestStatus(): void {
-    commonEventManager.publish(VPN_PROBE_COMMAND_EVENT, {
-      bundleName: BUNDLE_NAME,
-      data: 'STATUS'
-    }, (error: BusinessError) => {
-      if (error?.code) {
-        this.extensionStatus = `STATUS REQUEST FAILED code=${error.code}`;
+  private async getChannel(): Promise<ProbeChannel> {
+    if (this.channel !== undefined) {
+      return this.channel;
+    }
+    const context = this.getUIContext().getHostContext();
+    if (context === undefined) {
+      throw new Error('UI context unavailable');
+    }
+    this.channel = new ProbeChannel(
+      context.createAreaModeContext(contextConstant.AreaMode.EL1).filesDir,
+      [STATUS_KEY, NETWORK_KEY, ENGINE_KEY]);
+    return this.channel;
+  }
+
+  private async requestStatus(): Promise<void> {
+    try {
+      await (await this.getChannel()).publish(COMMAND_KEY, 'STATUS');
+    } catch (error) {
+      this.extensionStatus = `STATUS REQUEST FAILED code=${(error as BusinessError).code ?? -1}`;
+    }
+  }
+
+  private handleVpnStatus(payload: string): void {
+    const parts = payload.split('|');
+    const status = parts[0];
+    const extensionPid = Number(parts[1]);
+    const uptimeMinutes = Number(parts[3]);
+    this.vpnNativeStatus = parts[2];
+    if (status.startsWith('NETWORK ')) {
+      this.networkStatus = status.substring(8);
+    } else {
+      this.extensionStatus = `${status} uptimeMin=${uptimeMinutes} pid=${extensionPid} process=${extensionPid === this.uiPid ? 'SAME' : 'SEPARATE'}`;
+      if (status === 'STOPPED' && this.stopRequested) {
+        this.stopRequested = false;
+        this.finishVpnStop();
+      } else if (status.startsWith('STOP FAIL') && this.stopRequested) {
+        this.stopRequested = false;
+        this.controlStatus = 'STOP FAILED IN EXTENSION';
       }
-    });
+    }
   }
 
   private async startVpn(): Promise<void> {
@@ -143,22 +151,14 @@ struct Index {
     }
   }
 
-  private stopVpn(): void {
+  private async stopVpn(): Promise<void> {
     if (this.stopRequested) {
       return;
     }
     this.stopRequested = true;
     this.controlStatus = 'STOP REQUESTED';
     try {
-      commonEventManager.publish(VPN_PROBE_COMMAND_EVENT, {
-        bundleName: BUNDLE_NAME,
-        data: 'STOP'
-      }, (error: BusinessError) => {
-        if (error?.code) {
-          this.stopRequested = false;
-          this.controlStatus = `STOP COMMAND FAILED code=${error.code}`;
-        }
-      });
+      await (await this.getChannel()).publish(COMMAND_KEY, 'STOP');
     } catch (error) {
       this.stopRequested = false;
       this.controlStatus = `STOP COMMAND FAILED code=${(error as BusinessError).code}`;
@@ -236,21 +236,18 @@ struct Index {
     }
   }
 
-  private probePeer(): void {
+  private async probePeer(): Promise<void> {
     const target = this.peerTarget.trim();
     if (target.length === 0 || target.length > 128) {
       this.peerStatus = 'INVALID IP';
       return;
     }
     this.peerStatus = 'PROBING';
-    commonEventManager.publish(VPN_PROBE_COMMAND_EVENT, {
-      bundleName: BUNDLE_NAME,
-      data: `PING|${target}`
-    }, (error: BusinessError) => {
-      if (error?.code) {
-        this.peerStatus = `REQUEST FAILED code=${error.code}`;
-      }
-    });
+    try {
+      await (await this.getChannel()).publish(COMMAND_KEY, `PING|${target}`);
+    } catch (error) {
+      this.peerStatus = `REQUEST FAILED code=${(error as BusinessError).code ?? -1}`;
+    }
   }
 
   private async probeMagicDns(): Promise<void> {
@@ -292,42 +289,45 @@ struct Index {
   }
 
   build() {
-    Column({ space: 12 }) {
-      Text('ArkScale P4')
-        .fontSize(28)
-        .fontWeight(FontWeight.Bold)
-      Text(this.diagnosticText())
-        .fontSize(14)
-        .fontColor($r('app.color.secondary_text'))
-        .copyOption(CopyOptions.LocalDevice)
-      Text('Long press the status text to copy')
-        .fontSize(12)
-        .fontColor($r('app.color.secondary_text'))
-      if (this.loginUrl.length > 0) {
-        Button('Open Tailscale login')
-          .onClick(() => this.openLogin())
+    Scroll() {
+      Column({ space: 12 }) {
+        Text('ArkScale P5')
+          .fontSize(28)
+          .fontWeight(FontWeight.Bold)
+        Text(this.diagnosticText())
+          .fontSize(14)
+          .fontColor($r('app.color.secondary_text'))
+          .copyOption(CopyOptions.LocalDevice)
+        Text('Long press the status text to copy')
+          .fontSize(12)
+          .fontColor($r('app.color.secondary_text'))
+        if (this.loginUrl.length > 0) {
+          Button('Open Tailscale login')
+            .onClick(() => this.openLogin())
+        }
+        TextInput({ placeholder: 'Peer Tailscale IP', text: this.peerTarget })
+          .width('80%')
+          .onChange((value: string) => this.peerTarget = value)
+        Button('Probe peer')
+          .onClick(() => this.probePeer())
+        Button('Probe TCP 22')
+          .onClick(() => this.probeSshPort())
+        TextInput({ placeholder: 'MagicDNS hostname', text: this.magicDnsTarget })
+          .width('80%')
+          .onChange((value: string) => this.magicDnsTarget = value)
+        Button('Resolve MagicDNS')
+          .onClick(() => this.probeMagicDns())
+        Row({ space: 12 }) {
+          Button('Start ArkScale')
+            .onClick(() => this.startVpn())
+          Button('Stop ArkScale')
+            .onClick(() => this.stopVpn())
+        }
       }
-      TextInput({ placeholder: 'Peer Tailscale IP', text: this.peerTarget })
-        .width('80%')
-        .onChange((value: string) => this.peerTarget = value)
-      Button('Probe peer')
-        .onClick(() => this.probePeer())
-      Button('Probe TCP 22')
-        .onClick(() => this.probeSshPort())
-      TextInput({ placeholder: 'MagicDNS hostname', text: this.magicDnsTarget })
-        .width('80%')
-        .onChange((value: string) => this.magicDnsTarget = value)
-      Button('Resolve MagicDNS')
-        .onClick(() => this.probeMagicDns())
-      Row({ space: 12 }) {
-        Button('Start ArkScale')
-          .onClick(() => this.startVpn())
-        Button('Stop ArkScale')
-          .onClick(() => this.stopVpn())
-      }
+      .width('100%')
+      .padding({ top: 24, bottom: 24 })
     }
     .width('100%')
     .height('100%')
-    .justifyContent(FlexAlign.Center)
   }
 }
