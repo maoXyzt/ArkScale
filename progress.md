@@ -171,6 +171,7 @@
 | P5 设备矩阵 | 汇总已完成真机证据 | 区分已验证设备与覆盖空白 | Mate X7 门禁入表，设备标识与网络信息未入库 | pass |
 | P5 第三方许可证技术归类 | 52 个运行时模块及其原文 | SPDX 表达式、版本和依赖闭包一致 | 5 类表达式全部登记，NOTICE/PATENTS 一并归档 | pass |
 | P5 Release 日志隐私 | backend logger、启动/登录/Notify 错误路径 | 原始第三方日志和错误不进入系统日志或页面事件 | 复用 `logger.Discard`，健康事件固定消息 | pass |
+| P5 signed HAP 门禁 | unsigned/signed HAP 与最终 module manifest | 两类产物均通过 ABI/API/权限检查且无 `MANAGE_VPN` | `verify:hap` 同时校验两份产物 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |

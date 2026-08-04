@@ -7,6 +7,7 @@
 - ArkScale 源码采用 MIT 许可证；第三方组件继续适用各自许可证，不能按 ArkScale 的 MIT 许可证重新授权。
 - Tailscale 状态位于应用私有目录，固定源码以 `0600` 原子写入；跨进程 mailbox 同样以 `0600` 创建。
 - HAP 仅申请 `INTERNET` 与 `GET_NETWORK_INFO`，不申请系统级 `MANAGE_VPN`。
+- `pnpm run verify:hap` 对 unsigned HAP 和本地存在的 signed HAP 执行相同的 ABI、API、权限与原生库检查，并拒绝产物中的 `MANAGE_VPN`。
 - Tailscale backend 原始日志默认丢弃，异步健康事件只向页面发送固定消息；ArkScale 主动写入系统日志的 ArkTS 路径仅记录数字错误码。
 
 页面的主动诊断会显示 peer 名称、Tailscale IP/DNS 名称、直连 endpoint、资源计数和探针错误。这些数据只用于本机排障，不会由 ArkScale 上传；复制诊断内容对外分享前应自行脱敏。登录 URL 和节点状态保存在应用私有目录或私有跨进程 mailbox，不写入系统日志。
