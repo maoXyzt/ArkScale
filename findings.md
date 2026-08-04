@@ -187,3 +187,4 @@
 - 从最近任务划掉并重开 UI 后，独立 VPN 进程保持原 PID 和连续 uptime，页面通过共享状态通道恢复 READY/RUNNING；peer 继续通过且 FD 保持 46。
 - 系统强制停止后页面状态干净归零；重新 Start 创建新 VPN 进程，无需再次登录即可恢复动态配置、Backend RUNNING 和 peer 数据面，FD 保持 46。
 - 飞行模式往返后同一 VPN 进程保持 READY/RUNNING，默认网络 netId 与 switch 计数按预期变化；peer、原生 TCP 和 MagicDNS 全部恢复，FD 保持 46。
+- 设备重启后页面状态干净归零；重新 Start 无需登录即可恢复动态配置和 Backend，peer、原生 TCP、MagicDNS 全部通过，FD 为 45。
