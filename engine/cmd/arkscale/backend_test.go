@@ -87,6 +87,20 @@ func TestNotifySanitizesBackendError(t *testing.T) {
 	}
 }
 
+func TestNotifyDoesNotRestartLoginDuringLogout(t *testing.T) {
+	runtime := &backendRuntime{ctx: context.Background()}
+	runtime.loggingOut.Store(true)
+	state := ipn.NeedsLogin
+	runtime.notify(ipn.Notify{State: &state})
+	var event stateEvent
+	if err := json.Unmarshal(<-engineEvents, &event); err != nil {
+		t.Fatal(err)
+	}
+	if event.State != "needs-login" {
+		t.Fatalf("state = %q", event.State)
+	}
+}
+
 func TestParseProcessStats(t *testing.T) {
 	rssKB, err := parseResidentKB("100 25 10 5 0 20 0\n", 4096)
 	if err != nil || rssKB != 100 {

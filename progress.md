@@ -172,6 +172,10 @@
 | P5 第三方许可证技术归类 | 52 个运行时模块及其原文 | SPDX 表达式、版本和依赖闭包一致 | 5 类表达式全部登记，NOTICE/PATENTS 一并归档 | pass |
 | P5 Release 日志隐私 | backend logger、启动/登录/Notify 错误路径 | 原始第三方日志和错误不进入系统日志或页面事件 | 复用 `logger.Discard`，健康事件固定消息 | pass |
 | P5 signed HAP 门禁 | unsigned/signed HAP 与最终 module manifest | 两类产物均通过 ABI/API/权限检查且无 `MANAGE_VPN` | `verify:hap` 同时校验两份产物 | pass |
+| P5 P0 离线镜像复用 | 本地已有 `arkscale-p0:go1.24.5` 且 Docker Hub 不可达 | 不查询远端即可运行完整 P0 | Go 单测、AArch64 ELF/ABI 与合规包生成通过 | pass |
+| P5 peer 版本对齐 | 重启 alpine tailscale 服务并复查版本 | CLI/daemon 不再报告版本不一致 | 无版本警告，后续 peer/TCP/MagicDNS 回归通过 | pass |
+| P5 显式登出本地门禁 | Go `LocalBackend.Logout` → C ABI → Node-API → VPN Extension → UI | Stop 保留身份；Logout 成功后关闭 VPN 且下次需登录 | Go 单测、P0、HAP 构建与两类 HAP 符号校验通过 | pass |
+| P5 显式登出真机门禁 | 已登录真机点击 `Log out and forget identity` | `LOGGED OUT`，再次 Start 出现登录 URL | 会删除当前身份，待明确同意后执行 | pending |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -211,19 +215,20 @@
 | 2026-08-04 | VPN 进程 FD 持续增长 | 1 | 按 FD 类型和调用路径定位到 SIG Go 接口枚举未释放 socket/ifaddrs；在共享实现修复并完成真机 A/B |
 | 2026-08-04 | 首版 SBOM 包含大量开发工具依赖 | 1 | 从全模块图改为 OpenHarmony 目标的实际编译依赖闭包 |
 | 2026-08-04 | `go list` 缓存失败被 pipeline 成功状态掩盖 | 1 | 独立保存命令输出并先检查退出码，再执行排序和产物替换 |
+| 2026-08-04 | BuildKit 在本地已有 P0 镜像时仍因 Docker Hub metadata 超时失败 | 2 | 构建脚本先复用同名本地镜像；镜像不存在时才执行 `docker build` |
 
 ## 当前诊断门禁
 - P0 已完成；实现不含 Tailscale 的最小 Go c-shared library，并接入现有 Node-API/HAP。
-- P0–P4 已完成；P5 的跨进程传输与 SIG Go 接口枚举泄漏已修复，短时真机资源回归通过，24 小时与异常恢复仍待完成。
+- P0–P4 已完成；P5 的跨进程传输、SIG Go 接口枚举泄漏、异常恢复与显式登出本地链路已完成，24 小时、低内存和登出真机门禁仍待完成。
 
 ## 当前外部输入
-- P5 长稳前需对齐 alpine 测试端的 CLI/daemon 版本，并确定 24 小时测试窗口。
+- 需要不影响日常用机的 24 小时测试窗口；显式 Logout 真机门禁需先确认可以清除当前登录身份。
 
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
 | 我在哪里？ | 阶段 P5：稳定性与安全 |
-| 我要去哪里？ | 对齐测试环境，完成 24 小时、异常恢复和资源增长门禁 |
+| 我要去哪里？ | 完成 24 小时、低内存和显式登出真机门禁 |
 | 目标是什么？ | API 22+ ArkScale 最小客户端 |
 | 我学到了什么？ | 见 `findings.md` |
 | 我做了什么？ | 见上方记录 |

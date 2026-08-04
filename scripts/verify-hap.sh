@@ -51,6 +51,7 @@ fi
 "$ARKSCALE_READELF" --dyn-syms "$ARKSCALE_ENGINE" | grep 'arkscale_set_tun' >/dev/null
 "$ARKSCALE_READELF" --dyn-syms "$ARKSCALE_ENGINE" | grep 'arkscale_clear_tun' >/dev/null
 "$ARKSCALE_READELF" --dyn-syms "$ARKSCALE_ENGINE" | grep 'arkscale_probe_peer' >/dev/null
+"$ARKSCALE_READELF" --dyn-syms "$ARKSCALE_ENGINE" | grep 'arkscale_logout' >/dev/null
 "$ARKSCALE_READELF" --dyn-syms "$ARKSCALE_ENGINE" | grep 'arkscale_stop' >/dev/null
 ARKSCALE_BRIDGE_DYNAMIC=$("$ARKSCALE_READELF" -d "$ARKSCALE_BRIDGE")
 printf '%s\n' "$ARKSCALE_BRIDGE_DYNAMIC" | grep 'Shared library: \[libarkscale_smoke.so\]' >/dev/null

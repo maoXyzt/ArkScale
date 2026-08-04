@@ -77,6 +77,8 @@ P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测�
 
 页面提供 `Start ArkScale` / `Stop ArkScale`。首次启动需完成系统 VPN 授权和 Tailscale 交互登录；成功后应显示 `Backend: RUNNING`、`Extension: READY configGen=...` 和 Native 的 `protected/tunDup/engineTun/sameProcess=PASS`。停止后应显示 `Backend: STOPPED` 与 `dupOwnership/engineTun=PASS`。
 
+`Log out and forget identity` 会请求 Tailscale backend 登出并删除当前 profile，成功后停止 VPN Extension；下次 Start 必须重新交互登录。普通 Stop 不删除身份。
+
 输入 peer 的 Tailscale IP 并执行 `Probe peer` 后，页面会自动填入控制面下发的完整 DNS 名称。`Resolve MagicDNS` 必须通过 VPN 的 `100.100.100.100` 解析到该 peer 的预期 Tailscale IP；该门禁已于 2026-08-03 在 Mate X7 上通过，设备与 tailnet 标识不入库。
 
 `Probe TCP 22` 使用 Harmony 原生 `TCPSocket` 从 UI 进程连接 peer，不借用 Go backend 的内部 dial；IPv4 和 Tailscale ULA IPv6 门禁均已在同一真机连接到 peer 的 SSH 端口。即使物理网络没有公网 IPv6，Tailscale IPv6 仍可由 IPv4/DERP 承载。

@@ -7,6 +7,7 @@ package main
 import "C"
 
 import (
+	"context"
 	"sync"
 	"time"
 	"unsafe"
@@ -161,10 +162,34 @@ func arkscale_probe_peer(target *C.char, eventJSON **C.char, length *C.size_t) C
 	return resultOK
 }
 
+//export arkscale_logout
+func arkscale_logout() C.int {
+	engineState.Lock()
+	defer engineState.Unlock()
+	if engineState.backend == nil {
+		return resultNotImplemented
+	}
+	backend := engineState.backend
+	backend.loggingOut.Store(true)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := backend.backend.Logout(ctx); err != nil {
+		backend.loggingOut.Store(false)
+		return resultInternalError
+	}
+	closeEngineLocked("logged-out")
+	return resultOK
+}
+
 //export arkscale_stop
 func arkscale_stop() C.int {
 	engineState.Lock()
 	defer engineState.Unlock()
+	closeEngineLocked("stopped")
+	return resultOK
+}
+
+func closeEngineLocked(state string) {
 	backend := engineState.backend
 	engineState.backend = nil
 	tun := engineState.tun
@@ -174,14 +199,13 @@ func arkscale_stop() C.int {
 		_ = emitEngineEvent(stateEvent{
 			SchemaVersion: eventSchemaVersion,
 			Type:          "state",
-			State:         "stopped",
+			State:         state,
 		})
-		return resultOK
+		return
 	}
 	if tun != nil {
 		tun.Shutdown()
 	}
-	return resultOK
 }
 
 func main() {}

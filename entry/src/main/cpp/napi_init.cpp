@@ -75,9 +75,11 @@ struct StartEngineWork {
     bool pumpStarted = false;
 };
 
-struct StopEngineWork {
+struct EngineShutdownWork {
     napi_async_work work = nullptr;
     napi_deferred deferred = nullptr;
+    int (*operation)() = nullptr;
+    const char* errorMessage = nullptr;
     int result = ARKSCALE_ERROR_INTERNAL;
 };
 
@@ -524,35 +526,39 @@ static napi_value StartEngine(napi_env env, napi_callback_info info)
     return promise;
 }
 
-static napi_value StopEngine(napi_env env, napi_callback_info)
+static napi_value QueueEngineShutdown(napi_env env, const char* resource, int (*operation)(), const char* errorMessage)
 {
-    StopEngineWork* context = new (std::nothrow) StopEngineWork;
+    EngineShutdownWork* context = new (std::nothrow) EngineShutdownWork;
     if (context == nullptr) {
         napi_throw_error(env, nullptr, "unable to allocate engine work");
         return nullptr;
     }
+    context->operation = operation;
+    context->errorMessage = errorMessage;
     napi_value promise;
     napi_value resourceName;
     if (napi_create_promise(env, &context->deferred, &promise) != napi_ok) {
         delete context;
-        napi_throw_error(env, nullptr, "unable to create engine stop promise");
+        napi_throw_error(env, nullptr, "unable to create engine shutdown promise");
         return nullptr;
     }
-    napi_create_string_utf8(env, "ArkScaleStopEngine", NAPI_AUTO_LENGTH, &resourceName);
+    napi_create_string_utf8(env, resource, NAPI_AUTO_LENGTH, &resourceName);
     napi_status status = napi_create_async_work(env, nullptr, resourceName,
         [](napi_env, void* data) {
-            StopEngineWork* work = static_cast<StopEngineWork*>(data);
-            work->result = arkscale_stop();
-            StopEventPump();
+            EngineShutdownWork* work = static_cast<EngineShutdownWork*>(data);
+            work->result = work->operation();
+            if (work->result == ARKSCALE_OK) {
+                StopEventPump();
+            }
         },
         [](napi_env env, napi_status status, void* data) {
-            StopEngineWork* work = static_cast<StopEngineWork*>(data);
+            EngineShutdownWork* work = static_cast<EngineShutdownWork*>(data);
             if (status == napi_ok && work->result == ARKSCALE_OK) {
                 napi_value value;
                 napi_get_boolean(env, true, &value);
                 napi_resolve_deferred(env, work->deferred, value);
             } else {
-                napi_reject_deferred(env, work->deferred, CreateError(env, "unable to stop Tailscale backend"));
+                napi_reject_deferred(env, work->deferred, CreateError(env, work->errorMessage));
             }
             napi_delete_async_work(env, work->work);
             delete work;
@@ -562,10 +568,20 @@ static napi_value StopEngine(napi_env env, napi_callback_info)
             napi_delete_async_work(env, context->work);
         }
         delete context;
-        napi_throw_error(env, nullptr, "unable to queue engine stop");
+        napi_throw_error(env, nullptr, "unable to queue engine shutdown");
         return nullptr;
     }
     return promise;
+}
+
+static napi_value StopEngine(napi_env env, napi_callback_info)
+{
+    return QueueEngineShutdown(env, "ArkScaleStopEngine", arkscale_stop, "unable to stop Tailscale backend");
+}
+
+static napi_value LogoutEngine(napi_env env, napi_callback_info)
+{
+    return QueueEngineShutdown(env, "ArkScaleLogoutEngine", arkscale_logout, "unable to log out Tailscale backend");
 }
 
 static napi_value ProbePeer(napi_env env, napi_callback_info info)
@@ -877,6 +893,7 @@ static napi_value Init(napi_env env, napi_value exports)
         {"stopProbeChannelWatch", nullptr, StopProbeChannelWatch, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"startEngine", nullptr, StartEngine, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"stopEngine", nullptr, StopEngine, nullptr, nullptr, nullptr, napi_default, nullptr},
+        {"logoutEngine", nullptr, LogoutEngine, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"networkChanged", nullptr, NetworkChanged, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"suspendVpnTun", nullptr, SuspendVpnTun, nullptr, nullptr, nullptr, napi_default, nullptr},
         {"probePeer", nullptr, ProbePeer, nullptr, nullptr, nullptr, napi_default, nullptr},

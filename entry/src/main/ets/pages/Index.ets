@@ -51,6 +51,7 @@ struct Index {
   private channel?: ProbeChannel;
   private channelSubscribed: boolean = false;
   private stopRequested: boolean = false;
+  private logoutRequested: boolean = false;
   private channelChanged = (key: number): void => {
     const payload = this.channel?.read(key);
     if (payload === undefined) {
@@ -125,16 +126,23 @@ struct Index {
       this.extensionStatus = `${status} uptimeMin=${uptimeMinutes} pid=${extensionPid} process=${extensionPid === this.uiPid ? 'SAME' : 'SEPARATE'}`;
       if (status === 'STOPPED' && this.stopRequested) {
         this.stopRequested = false;
-        this.finishVpnStop();
+        this.finishVpnStop('STOPPED');
       } else if (status.startsWith('STOP FAIL') && this.stopRequested) {
         this.stopRequested = false;
         this.controlStatus = 'STOP FAILED IN EXTENSION';
+      } else if (status === 'LOGGED_OUT' && this.logoutRequested) {
+        this.logoutRequested = false;
+        this.finishVpnStop('LOGGED OUT');
+      } else if (status.startsWith('LOGOUT FAIL') && this.logoutRequested) {
+        this.logoutRequested = false;
+        this.controlStatus = 'LOGOUT FAILED IN EXTENSION';
       }
     }
   }
 
   private async startVpn(): Promise<void> {
     this.stopRequested = false;
+    this.logoutRequested = false;
     this.networkStatus = 'REGISTERING';
     this.engineStatus = 'STARTING';
     this.loginUrl = '';
@@ -152,7 +160,7 @@ struct Index {
   }
 
   private async stopVpn(): Promise<void> {
-    if (this.stopRequested) {
+    if (this.stopRequested || this.logoutRequested) {
       return;
     }
     this.stopRequested = true;
@@ -165,7 +173,21 @@ struct Index {
     }
   }
 
-  private async finishVpnStop(): Promise<void> {
+  private async logoutVpn(): Promise<void> {
+    if (this.stopRequested || this.logoutRequested) {
+      return;
+    }
+    this.logoutRequested = true;
+    this.controlStatus = 'LOGOUT REQUESTED';
+    try {
+      await (await this.getChannel()).publish(COMMAND_KEY, 'LOGOUT');
+    } catch (error) {
+      this.logoutRequested = false;
+      this.controlStatus = `LOGOUT COMMAND FAILED code=${(error as BusinessError).code ?? -1}`;
+    }
+  }
+
+  private async finishVpnStop(status: string): Promise<void> {
     this.controlStatus = 'STOPPING EXTENSION';
     try {
       await vpnExtension.stopVpnExtensionAbility({
@@ -173,7 +195,7 @@ struct Index {
         moduleName: 'entry',
         abilityName: 'ArkScaleVpnExtension'
       });
-      this.controlStatus = 'STOPPED';
+      this.controlStatus = status;
     } catch (error) {
       this.controlStatus = `EXTENSION STOP FAILED code=${(error as BusinessError).code}`;
     }
@@ -323,6 +345,8 @@ struct Index {
           Button('Stop ArkScale')
             .onClick(() => this.stopVpn())
         }
+        Button('Log out and forget identity')
+          .onClick(() => this.logoutVpn())
       }
       .width('100%')
       .padding({ top: 24, bottom: 24 })

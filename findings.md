@@ -199,3 +199,6 @@
 - 首版设备矩阵只登记完成端到端门禁的 Mate X7，并显式保留其他 API 22+ 型号、24 小时长稳、低内存与 release 分发空白；单设备结果不外推为全面兼容。
 - 52 个运行时 Go 模块的许可证技术归类为：23 个 Apache-2.0、19 个 BSD-3-Clause、7 个 MIT、2 个 BSD-2-Clause，以及 1 个 `Apache-2.0 AND BSD-3-Clause`；P0 同时归档 NOTICE/PATENTS，并校验模块路径和版本与登记表完全一致。
 - LocalBackend、NetMon、userspace engine、netstack 和 FileStore 原先共用 `log.Printf`；现统一复用 Tailscale 的 `logger.Discard`，并把启动、登录和 Notify 的底层错误固定为无敏感信息的健康消息。用户主动触发的 peer 诊断仍只在本机页面显示。
+- 固定 Tailscale 提交的 `LocalBackend.Logout` 仅在控制面登出成功后删除当前 profile；ArkScale 因此保留普通 Stop 的本地身份，并新增显式 Logout。Logout 期间抑制 `NeedsLogin` 自动拉起交互登录，失败时保持 backend/VPN 运行，成功时才关闭 engine 与 VPN。
+- 显式 Logout 已通过 Go 单测、P0 AArch64 构建、ArkTS/HAP 构建以及 unsigned/signed HAP ABI 校验；真机门禁会删除当前身份，尚未在未获明确同意时执行。
+- alpine 重启 tailscale 服务后 CLI/daemon 不再报告版本不一致；后续 peer、TCP 与 MagicDNS 回归通过，测试 peer 版本门禁已对齐。

@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -58,6 +59,7 @@ type backendRuntime struct {
 	mtu              int
 	ctx              context.Context
 	cancel           context.CancelFunc
+	loggingOut       atomic.Bool
 }
 
 type stateEvent struct {
@@ -278,7 +280,7 @@ func (r *backendRuntime) notify(notify ipn.Notify) {
 			Type:          "state",
 			State:         eventState(*notify.State),
 		})
-		if *notify.State == ipn.NeedsLogin {
+		if *notify.State == ipn.NeedsLogin && r.ctx.Err() == nil && !r.loggingOut.Load() {
 			go func() {
 				if err := r.backend.StartLoginInteractive(r.ctx); err != nil && r.ctx.Err() == nil {
 					r.emitHealth("error", "interactive login failed")

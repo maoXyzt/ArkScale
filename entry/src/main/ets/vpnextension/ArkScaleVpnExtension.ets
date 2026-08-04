@@ -66,6 +66,9 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     if (command === 'STOP' && !this.stopping) {
       this.stopping = true;
       this.stopProbe();
+    } else if (command === 'LOGOUT' && !this.stopping) {
+      this.stopping = true;
+      this.stopProbe(true);
     } else if (command === 'STATUS') {
       this.publishSnapshot();
     } else if (command.startsWith('PING|') && !this.stopping) {
@@ -144,11 +147,26 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     }
   }
 
-  private async stopProbe(): Promise<void> {
-    this.stopNetworkProbe();
+  private async stopProbe(logout: boolean = false): Promise<void> {
     await this.startWork;
     await this.configWork;
     this.pendingConfig = undefined;
+    if (logout) {
+      if (!this.engineStarted) {
+        this.stopping = false;
+        this.publishStatus('LOGOUT FAIL code=-1');
+        return;
+      }
+      try {
+        await bridge.logoutEngine();
+        this.engineStarted = false;
+      } catch (error) {
+        this.stopping = false;
+        this.publishStatus(`LOGOUT FAIL code=${(error as BusinessError).code ?? -1}`);
+        return;
+      }
+    }
+    this.stopNetworkProbe();
     let engineErrorCode = 0;
     if (this.engineStarted) {
       try {
@@ -164,12 +182,13 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     if (errorCode === 0) {
       bridge.stopVpnProbe();
       this.stopCompleted = true;
-      this.publishEngineEvent(JSON.stringify({ schemaVersion: 1, type: 'state', state: 'stopped' }));
-      this.publishStatus('STOPPED');
+      const state = logout ? 'logged-out' : 'stopped';
+      this.publishEngineEvent(JSON.stringify({ schemaVersion: 1, type: 'state', state: state }));
+      this.publishStatus(logout ? 'LOGGED_OUT' : 'STOPPED');
     } else {
       bridge.failVpnProbe(errorCode);
       this.stopping = false;
-      this.publishStatus(`STOP FAIL code=${errorCode}`);
+      this.publishStatus(`${logout ? 'LOGOUT' : 'STOP'} FAIL code=${errorCode}`);
     }
   }
 

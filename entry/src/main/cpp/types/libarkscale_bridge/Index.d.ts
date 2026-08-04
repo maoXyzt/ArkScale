@@ -18,6 +18,7 @@ export const startProbeChannelWatch: (mask: number, listener: (key: number, valu
 export const stopProbeChannelWatch: () => void;
 export const startEngine: (configJson: string, listener: (eventJson: string) => void) => Promise<boolean>;
 export const stopEngine: () => Promise<boolean>;
+export const logoutEngine: () => Promise<boolean>;
 export const networkChanged: () => void;
 export const suspendVpnTun: () => boolean;
 export const probePeer: (target: string) => Promise<string>;

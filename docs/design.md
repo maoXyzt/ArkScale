@@ -168,12 +168,13 @@ int arkscale_next_event(char **json, size_t *len, uint32_t timeout_ms);
 void arkscale_free(void *ptr);
 int arkscale_set_tun(int dup_fd, uint64_t generation);
 void arkscale_network_changed(void);
+int arkscale_logout(void);
 int arkscale_stop(void);
 ```
 
 约束：
 
-- `start`、`set_tun`、`stop` 必须幂等或返回明确状态码。
+- `start`、`set_tun`、`logout`、`stop` 必须幂等或返回明确状态码；`stop` 保留身份，`logout` 等待控制面确认后删除当前 profile。
 - `next_event` 返回的内存由 Go/C 分配，只能用 `arkscale_free` 释放。
 - Node-API 开一个事件泵线程调用 `next_event`；用 thread-safe function 把 JSON 事件投递到 ArkTS，不从 Go 线程直接调用 ArkTS。
 - ArkTS 暴露 `start(options): Promise<void>`、`stop(): Promise<void>`、`setTun(fd, generation)`、`networkChanged()` 和 `subscribe(listener)`。

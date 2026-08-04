@@ -44,6 +44,7 @@ for ARKSCALE_SYMBOL in \
   arkscale_clear_tun \
   arkscale_network_changed \
   arkscale_probe_peer \
+  arkscale_logout \
   arkscale_stop
 do
   echo "$ARKSCALE_DYNSYMS" | grep "$ARKSCALE_SYMBOL" >/dev/null
