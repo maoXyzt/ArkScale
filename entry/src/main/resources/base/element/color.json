@@ -2,11 +2,75 @@
   "color": [
     {
       "name": "start_window_background",
-      "value": "#F7F8FA"
+      "value": "#F4F7FA"
     },
     {
-      "name": "secondary_text",
-      "value": "#667085"
+      "name": "canvas",
+      "value": "#F4F7FA"
+    },
+    {
+      "name": "surface_primary",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "surface_inset",
+      "value": "#EDF2F6"
+    },
+    {
+      "name": "text_primary",
+      "value": "#10202D"
+    },
+    {
+      "name": "text_secondary",
+      "value": "#526371"
+    },
+    {
+      "name": "text_muted",
+      "value": "#6A7A86"
+    },
+    {
+      "name": "border_standard",
+      "value": "#D7E0E7"
+    },
+    {
+      "name": "border_soft",
+      "value": "#E7EDF1"
+    },
+    {
+      "name": "tunnel_accent",
+      "value": "#066F91"
+    },
+    {
+      "name": "accent_surface",
+      "value": "#E7F5FA"
+    },
+    {
+      "name": "status_success",
+      "value": "#177A4E"
+    },
+    {
+      "name": "status_error",
+      "value": "#C33F47"
+    },
+    {
+      "name": "status_idle",
+      "value": "#6F808C"
+    },
+    {
+      "name": "error_surface",
+      "value": "#FFF0F1"
+    },
+    {
+      "name": "control_secondary",
+      "value": "#E7EDF1"
+    },
+    {
+      "name": "control_disabled",
+      "value": "#E1E7EC"
+    },
+    {
+      "name": "on_accent",
+      "value": "#FFFFFF"
     }
   ]
 }

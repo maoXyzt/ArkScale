@@ -48,6 +48,7 @@ struct Index {
   @State private magicDnsTarget: string = '';
   @State private magicDnsStatus: string = 'NOT TESTED';
   @State private resourceStatus: string = 'NOT MEASURED';
+  @State private diagnosticsExpanded: boolean = false;
   private channel?: ProbeChannel;
   private channelSubscribed: boolean = false;
   private stopRequested: boolean = false;
@@ -143,9 +144,15 @@ struct Index {
   private async startVpn(): Promise<void> {
     this.stopRequested = false;
     this.logoutRequested = false;
+    this.extensionStatus = 'STARTING';
+    this.vpnNativeStatus = 'STARTING';
     this.networkStatus = 'REGISTERING';
     this.engineStatus = 'STARTING';
     this.loginUrl = '';
+    this.peerStatus = 'NOT TESTED';
+    this.tcpStatus = 'NOT TESTED';
+    this.magicDnsStatus = 'NOT TESTED';
+    this.resourceStatus = 'NOT MEASURED';
     this.controlStatus = 'REQUESTING';
     try {
       await vpnExtension.startVpnExtensionAbility({
@@ -189,16 +196,16 @@ struct Index {
 
   private confirmLogout(): void {
     this.getUIContext().showAlertDialog({
-      title: 'Log out of Tailscale?',
-      message: 'This removes the saved identity. The next Start requires signing in again.',
+      title: $r('app.string.logout_dialog_title'),
+      message: $r('app.string.logout_dialog_message'),
       autoCancel: true,
       primaryButton: {
-        value: 'Cancel',
+        value: $r('app.string.cancel'),
         defaultFocus: true,
         action: (): void => {}
       },
       secondaryButton: {
-        value: 'Log out',
+        value: $r('app.string.logout'),
         action: (): void => {
           this.logoutVpn();
         }
@@ -329,48 +336,478 @@ struct Index {
     }
   }
 
+  private isConnected(): boolean {
+    return this.engineStatus === 'RUNNING' && this.extensionStatus.startsWith('READY');
+  }
+
+  private isStopping(): boolean {
+    return this.stopRequested || this.logoutRequested || this.controlStatus === 'STOPPING EXTENSION';
+  }
+
+  private isBusy(): boolean {
+    if (this.isStopping()) {
+      return true;
+    }
+    if (this.isConnected() || this.loginUrl.length > 0 || this.hasError()) {
+      return false;
+    }
+    return this.engineStatus === 'STARTING' || this.controlStatus === 'REQUESTING' ||
+      this.controlStatus === 'START REQUESTED';
+  }
+
+  private hasError(): boolean {
+    return this.controlStatus.includes('FAIL') || this.extensionStatus.includes('FAIL') ||
+      this.vpnNativeStatus.includes('FAIL') || this.engineStatus.includes('ERROR');
+  }
+
+  private hasPeerTarget(): boolean {
+    const length = this.peerTarget.trim().length;
+    return length > 0 && length <= 128;
+  }
+
+  private hasMagicDnsTarget(): boolean {
+    const length = this.magicDnsTarget.trim().length;
+    return length > 0 && length <= 253;
+  }
+
+  private connectionColor(): ResourceColor {
+    if (this.hasError()) {
+      return $r('app.color.status_error');
+    }
+    if (this.isStopping() || this.isBusy() || this.loginUrl.length > 0) {
+      return $r('app.color.tunnel_accent');
+    }
+    if (this.isConnected()) {
+      return $r('app.color.status_success');
+    }
+    return $r('app.color.status_idle');
+  }
+
+  @Builder
+  private overviewRow(label: ResourceStr, value: string) {
+    Row({ space: 16 }) {
+      Text(label)
+        .fontSize(14)
+        .fontColor($r('app.color.text_secondary'))
+      Blank()
+      Text(value)
+        .fontSize(14)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('app.color.text_primary'))
+        .textAlign(TextAlign.End)
+        .maxLines(2)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+    }
+    .width('100%')
+    .padding({ top: 12, bottom: 12 })
+  }
+
   build() {
     Scroll() {
-      Column({ space: 12 }) {
-        Text('ArkScale P5')
-          .fontSize(28)
-          .fontWeight(FontWeight.Bold)
-        Text(this.diagnosticText())
-          .fontSize(14)
-          .fontColor($r('app.color.secondary_text'))
-          .copyOption(CopyOptions.LocalDevice)
-        Text('Long press the status text to copy')
-          .fontSize(12)
-          .fontColor($r('app.color.secondary_text'))
-        if (this.loginUrl.length > 0) {
-          Button('Open Tailscale login')
-            .onClick(() => this.openLogin())
-        }
-        TextInput({ placeholder: 'Peer Tailscale IP', text: this.peerTarget })
-          .width('80%')
-          .onChange((value: string) => this.peerTarget = value)
-        Button('Probe peer')
-          .onClick(() => this.probePeer())
-        Button('Probe TCP 22')
-          .onClick(() => this.probeSshPort())
-        TextInput({ placeholder: 'MagicDNS hostname', text: this.magicDnsTarget })
-          .width('80%')
-          .onChange((value: string) => this.magicDnsTarget = value)
-        Button('Resolve MagicDNS')
-          .onClick(() => this.probeMagicDns())
+      Column({ space: 16 }) {
         Row({ space: 12 }) {
-          Button('Start ArkScale')
-            .onClick(() => this.startVpn())
-          Button('Stop ArkScale')
-            .onClick(() => this.stopVpn())
+          Column({ space: 2 }) {
+            Text($r('app.string.app_name'))
+              .fontSize(28)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.text_primary'))
+            Text($r('app.string.app_tagline'))
+              .fontSize(13)
+              .fontColor($r('app.color.text_secondary'))
+          }
+          .alignItems(HorizontalAlign.Start)
+          Blank()
+          Text($r('app.string.self_deployed'))
+            .fontSize(12)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('app.color.tunnel_accent'))
+            .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+            .backgroundColor($r('app.color.accent_surface'))
+            .borderRadius(12)
         }
-        Button('Log out and forget identity')
-          .onClick(() => this.confirmLogout())
+        .width('100%')
+
+        Column({ space: 16 }) {
+          Column({ space: 6 }) {
+            Row({ space: 8 }) {
+              Text('●')
+                .fontSize(12)
+                .fontColor(this.connectionColor())
+              if (this.hasError()) {
+                Text($r('app.string.connection_attention'))
+                  .fontSize(22)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor($r('app.color.status_error'))
+              } else if (this.isStopping()) {
+                Text($r('app.string.connection_disconnecting'))
+                  .fontSize(22)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor($r('app.color.tunnel_accent'))
+              } else if (this.loginUrl.length > 0) {
+                Text($r('app.string.connection_login_required'))
+                  .fontSize(22)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor($r('app.color.tunnel_accent'))
+              } else if (this.isConnected()) {
+                Text($r('app.string.connection_connected'))
+                  .fontSize(22)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor($r('app.color.status_success'))
+              } else if (this.isBusy()) {
+                Text($r('app.string.connection_connecting'))
+                  .fontSize(22)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor($r('app.color.tunnel_accent'))
+              } else {
+                Text($r('app.string.connection_disconnected'))
+                  .fontSize(22)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor($r('app.color.text_primary'))
+              }
+            }
+            if (this.hasError()) {
+              Text($r('app.string.connection_hint_error'))
+                .fontSize(14)
+                .fontColor($r('app.color.text_secondary'))
+            } else if (this.isStopping()) {
+              Text($r('app.string.connection_hint_disconnecting'))
+                .fontSize(14)
+                .fontColor($r('app.color.text_secondary'))
+            } else if (this.loginUrl.length > 0) {
+              Text($r('app.string.connection_hint_login'))
+                .fontSize(14)
+                .fontColor($r('app.color.text_secondary'))
+            } else if (this.isConnected()) {
+              Text($r('app.string.connection_hint_connected'))
+                .fontSize(14)
+                .fontColor($r('app.color.text_secondary'))
+            } else if (this.isBusy()) {
+              Text($r('app.string.connection_hint_connecting'))
+                .fontSize(14)
+                .fontColor($r('app.color.text_secondary'))
+            } else {
+              Text($r('app.string.connection_hint_disconnected'))
+                .fontSize(14)
+                .fontColor($r('app.color.text_secondary'))
+            }
+          }
+          .alignItems(HorizontalAlign.Center)
+          .width('100%')
+
+          Column({ space: 6 }) {
+            Row() {
+              Text('●')
+                .fontSize(12)
+                .fontColor(this.connectionColor())
+              Blank()
+                .layoutWeight(1)
+                .height(2)
+                .backgroundColor(this.connectionColor())
+              Text('●')
+                .fontSize(18)
+                .fontColor(this.connectionColor())
+              Blank()
+                .layoutWeight(1)
+                .height(2)
+                .backgroundColor(this.isConnected() ? this.connectionColor() : $r('app.color.border_soft'))
+              Text('●')
+                .fontSize(12)
+                .fontColor(this.isConnected() ? this.connectionColor() : $r('app.color.status_idle'))
+            }
+            .width('100%')
+            Row() {
+              Text($r('app.string.rail_device'))
+                .fontSize(10)
+                .fontColor($r('app.color.text_muted'))
+              Blank()
+              Text($r('app.string.rail_tunnel'))
+                .fontSize(10)
+                .fontColor($r('app.color.text_muted'))
+              Blank()
+              Text($r('app.string.rail_tailnet'))
+                .fontSize(10)
+                .fontColor($r('app.color.text_muted'))
+            }
+            .width('100%')
+          }
+
+          if (this.isStopping()) {
+            Button(this.logoutRequested ? $r('app.string.action_signing_out') : $r('app.string.action_disconnecting'))
+              .width('100%')
+              .height(48)
+              .fontSize(16)
+              .fontColor($r('app.color.text_muted'))
+              .backgroundColor($r('app.color.control_disabled'))
+              .borderRadius(12)
+              .enabled(false)
+          } else if (this.loginUrl.length > 0) {
+            Button($r('app.string.action_sign_in'))
+              .width('100%')
+              .height(48)
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.on_accent'))
+              .backgroundColor($r('app.color.tunnel_accent'))
+              .borderRadius(12)
+              .onClick(() => this.openLogin())
+          } else if (this.isConnected()) {
+            Button($r('app.string.action_disconnect'))
+              .width('100%')
+              .height(48)
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.on_accent'))
+              .backgroundColor($r('app.color.status_success'))
+              .borderRadius(12)
+              .onClick(() => this.stopVpn())
+          } else if (this.isBusy()) {
+            Button($r('app.string.action_connecting'))
+              .width('100%')
+              .height(48)
+              .fontSize(16)
+              .fontColor($r('app.color.text_muted'))
+              .backgroundColor($r('app.color.control_disabled'))
+              .borderRadius(12)
+              .enabled(false)
+          } else {
+            Button($r('app.string.action_connect'))
+              .width('100%')
+              .height(48)
+              .fontSize(16)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('app.color.on_accent'))
+              .backgroundColor($r('app.color.tunnel_accent'))
+              .borderRadius(12)
+              .onClick(() => this.startVpn())
+          }
+        }
+        .width('100%')
+        .padding(20)
+        .backgroundColor($r('app.color.surface_primary'))
+        .border({ width: 1, color: $r('app.color.border_standard') })
+        .borderRadius(16)
+
+        Column() {
+          Row() {
+            Text($r('app.string.connection_overview'))
+              .fontSize(17)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.text_primary'))
+            Blank()
+            Text(bridge.getVersion())
+              .fontSize(11)
+              .fontColor($r('app.color.text_muted'))
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+          }
+          .width('100%')
+          .padding({ bottom: 8 })
+          this.overviewRow($r('app.string.overview_backend'), this.engineStatus)
+          Divider()
+            .color($r('app.color.border_soft'))
+          this.overviewRow($r('app.string.overview_network'), this.networkStatus)
+          Divider()
+            .color($r('app.color.border_soft'))
+          this.overviewRow($r('app.string.overview_vpn_service'), this.extensionStatus)
+        }
+        .width('100%')
+        .padding(20)
+        .backgroundColor($r('app.color.surface_primary'))
+        .border({ width: 1, color: $r('app.color.border_standard') })
+        .borderRadius(16)
+
+        Column({ space: 16 }) {
+          Row() {
+            Column({ space: 3 }) {
+              Text($r('app.string.diagnostics_title'))
+                .fontSize(17)
+                .fontWeight(FontWeight.Bold)
+                .fontColor($r('app.color.text_primary'))
+              Text($r('app.string.diagnostics_subtitle'))
+                .fontSize(12)
+                .fontColor($r('app.color.text_secondary'))
+            }
+            .alignItems(HorizontalAlign.Start)
+          }
+          .width('100%')
+
+          Button(this.diagnosticsExpanded ? $r('app.string.diagnostics_hide') : $r('app.string.diagnostics_show'))
+            .width('100%')
+            .height(44)
+            .fontSize(14)
+            .fontColor($r('app.color.tunnel_accent'))
+            .backgroundColor($r('app.color.accent_surface'))
+            .borderRadius(10)
+            .onClick(() => this.diagnosticsExpanded = !this.diagnosticsExpanded)
+
+          if (this.diagnosticsExpanded) {
+            Divider()
+              .color($r('app.color.border_soft'))
+
+            Column({ space: 10 }) {
+              Text($r('app.string.peer_tools_title'))
+                .width('100%')
+                .fontSize(14)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.text_primary'))
+              TextInput({ placeholder: $r('app.string.peer_ip_placeholder'), text: this.peerTarget })
+                .width('100%')
+                .height(46)
+                .fontColor($r('app.color.text_primary'))
+                .placeholderColor($r('app.color.text_muted'))
+                .backgroundColor($r('app.color.surface_inset'))
+                .border({ width: 1, color: $r('app.color.border_standard') })
+                .borderRadius(10)
+                .maxLength(128)
+                .accessibilityText($r('app.string.peer_ip_accessibility'))
+                .onChange((value: string) => this.peerTarget = value)
+              Row({ space: 10 }) {
+                Button(this.peerStatus === 'PROBING' ? $r('app.string.action_testing') : $r('app.string.action_probe_peer'))
+                  .layoutWeight(1)
+                  .height(42)
+                  .fontSize(13)
+                  .fontColor($r('app.color.text_primary'))
+                  .backgroundColor($r('app.color.control_secondary'))
+                  .borderRadius(10)
+                  .enabled(this.isConnected() && this.hasPeerTarget() && this.peerStatus !== 'PROBING')
+                  .onClick(() => this.probePeer())
+                Button(this.tcpStatus.startsWith('CONNECTING') ? $r('app.string.action_testing') : $r('app.string.action_probe_tcp'))
+                  .layoutWeight(1)
+                  .height(42)
+                  .fontSize(13)
+                  .fontColor($r('app.color.text_primary'))
+                  .backgroundColor($r('app.color.control_secondary'))
+                  .borderRadius(10)
+                  .enabled(this.isConnected() && this.hasPeerTarget() && !this.tcpStatus.startsWith('CONNECTING'))
+                  .onClick(() => this.probeSshPort())
+              }
+              .width('100%')
+              Text($r('app.string.peer_result'))
+                .width('100%')
+                .fontSize(12)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.text_muted'))
+              Text(this.peerStatus)
+                .width('100%')
+                .fontSize(12)
+                .fontColor($r('app.color.text_secondary'))
+              Text($r('app.string.tcp_result'))
+                .width('100%')
+                .fontSize(12)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.text_muted'))
+              Text(this.tcpStatus)
+                .width('100%')
+                .fontSize(12)
+                .fontColor($r('app.color.text_secondary'))
+            }
+            .width('100%')
+
+            Divider()
+              .color($r('app.color.border_soft'))
+
+            Column({ space: 10 }) {
+              Text($r('app.string.magicdns_title'))
+                .width('100%')
+                .fontSize(14)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.text_primary'))
+              TextInput({ placeholder: $r('app.string.magicdns_placeholder'), text: this.magicDnsTarget })
+                .width('100%')
+                .height(46)
+                .fontColor($r('app.color.text_primary'))
+                .placeholderColor($r('app.color.text_muted'))
+                .backgroundColor($r('app.color.surface_inset'))
+                .border({ width: 1, color: $r('app.color.border_standard') })
+                .borderRadius(10)
+                .maxLength(253)
+                .accessibilityText($r('app.string.magicdns_accessibility'))
+                .onChange((value: string) => this.magicDnsTarget = value)
+              Button(this.magicDnsStatus === 'RESOLVING' ? $r('app.string.action_resolving') : $r('app.string.action_resolve_magicdns'))
+                .width('100%')
+                .height(42)
+                .fontSize(13)
+                .fontColor($r('app.color.text_primary'))
+                .backgroundColor($r('app.color.control_secondary'))
+                .borderRadius(10)
+                .enabled(this.isConnected() && this.hasMagicDnsTarget() && this.magicDnsStatus !== 'RESOLVING')
+                .onClick(() => this.probeMagicDns())
+              Text($r('app.string.magicdns_result'))
+                .width('100%')
+                .fontSize(12)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.text_muted'))
+              Text(this.magicDnsStatus)
+                .width('100%')
+                .fontSize(12)
+                .fontColor($r('app.color.text_secondary'))
+            }
+            .width('100%')
+
+            Divider()
+              .color($r('app.color.border_soft'))
+
+            Column({ space: 6 }) {
+              Text($r('app.string.raw_status_title'))
+                .width('100%')
+                .fontSize(14)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('app.color.text_primary'))
+              Text(this.diagnosticText())
+                .width('100%')
+                .fontSize(12)
+                .fontColor($r('app.color.text_secondary'))
+                .copyOption(CopyOptions.LocalDevice)
+              Text($r('app.string.raw_status_copy_hint'))
+                .width('100%')
+                .fontSize(11)
+                .fontColor($r('app.color.text_muted'))
+            }
+            .width('100%')
+            .padding(12)
+            .backgroundColor($r('app.color.surface_inset'))
+            .borderRadius(10)
+          }
+        }
+        .width('100%')
+        .padding(20)
+        .backgroundColor($r('app.color.surface_primary'))
+        .border({ width: 1, color: $r('app.color.border_standard') })
+        .borderRadius(16)
+
+        Column({ space: 10 }) {
+          Text($r('app.string.identity_title'))
+            .width('100%')
+            .fontSize(17)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('app.color.text_primary'))
+          Text($r('app.string.identity_logout_hint'))
+            .width('100%')
+            .fontSize(13)
+            .fontColor($r('app.color.text_secondary'))
+          Button($r('app.string.action_logout_forget'))
+            .width('100%')
+            .height(44)
+            .fontSize(14)
+            .fontColor($r('app.color.status_error'))
+            .backgroundColor($r('app.color.error_surface'))
+            .border({ width: 1, color: $r('app.color.status_error') })
+            .borderRadius(10)
+            .enabled(!this.isBusy())
+            .onClick(() => this.confirmLogout())
+        }
+        .width('100%')
+        .padding(20)
+        .backgroundColor($r('app.color.surface_primary'))
+        .border({ width: 1, color: $r('app.color.border_standard') })
+        .borderRadius(16)
       }
       .width('100%')
-      .padding({ top: 24, bottom: 24 })
+      .constraintSize({ maxWidth: 680 })
+      .padding({ left: 16, right: 16, top: 20, bottom: 36 })
     }
     .width('100%')
     .height('100%')
+    .backgroundColor($r('app.color.canvas'))
   }
 }

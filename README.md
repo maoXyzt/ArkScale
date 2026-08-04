@@ -75,17 +75,17 @@ P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测�
 
 30 分钟测试期间应用会请求主窗口保持亮屏。请保持 ArkScale 在前台，并建议连接电源；手动锁屏、切到后台或系统拒绝保持亮屏时，本次结果无效。最终 PASS 除了要求经过 30 分钟，还要求 Go worker 实际产生至少 17000 个 100 ms tick，避免仅凭 ArkTS 墙上时间误判。
 
-页面提供 `Start ArkScale` / `Stop ArkScale`。首次启动需完成系统 VPN 授权和 Tailscale 交互登录；成功后应显示 `Backend: RUNNING`、`Extension: READY configGen=...` 和 Native 的 `protected/tunDup/engineTun/sameProcess=PASS`。停止后应显示 `Backend: STOPPED` 与 `dupOwnership/engineTun=PASS`。
+首页使用一个随状态变化的 `连接` / `断开连接` 主按钮。首次连接需完成系统 VPN 授权和 Tailscale 交互登录；成功后连接状态显示“已连接”。展开“诊断工具”可核对 `Backend: RUNNING`、`Extension: READY configGen=...` 和 Native 的 `protected/tunDup/engineTun/sameProcess=PASS`；停止后应显示 `Backend: STOPPED` 与 `dupOwnership/engineTun=PASS`。
 
-`Log out and forget identity` 经二次确认后请求 Tailscale backend 登出并删除当前 profile，成功后停止 VPN Extension；下次 Start 必须重新交互登录。普通 Stop 不删除身份。
+身份区域的“退出并删除身份”经二次确认后请求 Tailscale backend 登出并删除当前 profile，成功后停止 VPN Extension；下次连接必须重新交互登录。普通断开不删除身份。
 
-输入 peer 的 Tailscale IP 并执行 `Probe peer` 后，页面会自动填入控制面下发的完整 DNS 名称。`Resolve MagicDNS` 必须通过 VPN 的 `100.100.100.100` 解析到该 peer 的预期 Tailscale IP；该门禁已于 2026-08-03 在 Mate X7 上通过，设备与 tailnet 标识不入库。
+在“诊断工具”中输入 peer 的 Tailscale IP 并执行“测试节点”后，页面会自动填入控制面下发的完整 DNS 名称。“解析 MagicDNS”必须通过 VPN 的 `100.100.100.100` 解析到该 peer 的预期 Tailscale IP；该门禁已于 2026-08-03 在 Mate X7 上通过，设备与 tailnet 标识不入库。
 
-`Probe TCP 22` 使用 Harmony 原生 `TCPSocket` 从 UI 进程连接 peer，不借用 Go backend 的内部 dial；IPv4 和 Tailscale ULA IPv6 门禁均已在同一真机连接到 peer 的 SSH 端口。即使物理网络没有公网 IPv6，Tailscale IPv6 仍可由 IPv4/DERP 承载。
+“测试 TCP 22”使用 Harmony 原生 `TCPSocket` 从 UI 进程连接 peer，不借用 Go backend 的内部 dial；IPv4 和 Tailscale ULA IPv6 门禁均已在同一真机连接到 peer 的 SSH 端口。即使物理网络没有公网 IPv6，Tailscale IPv6 仍可由 IPv4/DERP 承载。
 
 HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须显式使用 family `2`。对于 `hasGateway=false` 的 IPv6 VPN 路由，ArkScale 将 `gateway.address` 留空；传入 `::` 会被目标系统当作实际 next-hop，导致本机 `ENETUNREACH`。
 
-`Probe peer` 的 Disco 结果已在同一真机显示公网 UDP `direct` 路径。验证时手机侧虽然是目的地址相关 NAT 映射且没有 UPnP/NAT-PMP/PCP，仍成功与具备稳定 UDP 映射的 peer 建立直连；公网地址和端口不入库。
+“测试节点”的 Disco 结果已在同一真机显示公网 UDP `direct` 路径。验证时手机侧虽然是目的地址相关 NAT 映射且没有 UPnP/NAT-PMP/PCP，仍成功与具备稳定 UDP 映射的 peer 建立直连；公网地址和端口不入库。
 
 控制面重建门禁会记录 `configGen`、`fromGen` 和 route/DNS 数量。真机先关闭再恢复 MagicDNS，随后批准并撤销一条临时子网路由；DNS 数量和路由数量分别按预期变化，每次新 TUN 的 `tunDup/engineTun/sameProcess` 均为 PASS，恢复原配置后 peer、TCP 与 MagicDNS 仍可用。
 
@@ -121,7 +121,7 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 └── scripts/               # HAP、依赖、工具链和 engine 构建
 ```
 
-当前处于 P5：P0–P4 功能门禁、短时资源回归和 5 轮连续全链路启停已通过，下一步验证 24 小时长稳、低内存及剩余控制面异常；完整产品 UI 和应用市场上架均不在范围内。
+当前处于 P5：P0–P4 功能门禁、面向当前范围的客户端 UI、短时资源回归和 5 轮连续全链路启停已完成，下一步验证 24 小时长稳、低内存及剩余控制面异常；Taildrop、出口节点等复杂产品 UI 和应用市场上架仍不在范围内。
 
 ## 安全
 

@@ -11,6 +11,222 @@
     {
       "name": "entry_ability_label",
       "value": "ArkScale"
+    },
+    {
+      "name": "app_tagline",
+      "value": "Private tailnet client"
+    },
+    {
+      "name": "self_deployed",
+      "value": "SELF-DEPLOYED"
+    },
+    {
+      "name": "connection_attention",
+      "value": "Attention needed"
+    },
+    {
+      "name": "connection_login_required",
+      "value": "Sign in required"
+    },
+    {
+      "name": "connection_connected",
+      "value": "Connected"
+    },
+    {
+      "name": "connection_connecting",
+      "value": "Connecting"
+    },
+    {
+      "name": "connection_disconnecting",
+      "value": "Disconnecting"
+    },
+    {
+      "name": "connection_disconnected",
+      "value": "Disconnected"
+    },
+    {
+      "name": "connection_hint_error",
+      "value": "Open diagnostics for details, then retry."
+    },
+    {
+      "name": "connection_hint_login",
+      "value": "Complete Tailscale sign-in to finish connecting."
+    },
+    {
+      "name": "connection_hint_connected",
+      "value": "Your private network tunnel is active."
+    },
+    {
+      "name": "connection_hint_connecting",
+      "value": "Preparing the protected network tunnel."
+    },
+    {
+      "name": "connection_hint_disconnecting",
+      "value": "Closing the protected network tunnel."
+    },
+    {
+      "name": "connection_hint_disconnected",
+      "value": "Connect when you need access to your tailnet."
+    },
+    {
+      "name": "rail_device",
+      "value": "DEVICE"
+    },
+    {
+      "name": "rail_tunnel",
+      "value": "TUNNEL"
+    },
+    {
+      "name": "rail_tailnet",
+      "value": "TAILNET"
+    },
+    {
+      "name": "action_sign_in",
+      "value": "Continue sign-in"
+    },
+    {
+      "name": "action_connect",
+      "value": "Connect"
+    },
+    {
+      "name": "action_connecting",
+      "value": "Connecting…"
+    },
+    {
+      "name": "action_disconnect",
+      "value": "Disconnect"
+    },
+    {
+      "name": "action_disconnecting",
+      "value": "Disconnecting…"
+    },
+    {
+      "name": "action_signing_out",
+      "value": "Signing out…"
+    },
+    {
+      "name": "connection_overview",
+      "value": "Connection overview"
+    },
+    {
+      "name": "overview_backend",
+      "value": "Backend"
+    },
+    {
+      "name": "overview_network",
+      "value": "Network"
+    },
+    {
+      "name": "overview_vpn_service",
+      "value": "VPN service"
+    },
+    {
+      "name": "diagnostics_title",
+      "value": "Diagnostics"
+    },
+    {
+      "name": "diagnostics_subtitle",
+      "value": "Peer, TCP, DNS and runtime checks"
+    },
+    {
+      "name": "diagnostics_show",
+      "value": "Show diagnostics"
+    },
+    {
+      "name": "diagnostics_hide",
+      "value": "Hide diagnostics"
+    },
+    {
+      "name": "peer_tools_title",
+      "value": "Peer reachability"
+    },
+    {
+      "name": "peer_ip_placeholder",
+      "value": "Example: 100.64.0.2"
+    },
+    {
+      "name": "peer_ip_accessibility",
+      "value": "Peer Tailscale IP address"
+    },
+    {
+      "name": "action_probe_peer",
+      "value": "Test peer"
+    },
+    {
+      "name": "action_probe_tcp",
+      "value": "Test TCP 22"
+    },
+    {
+      "name": "action_testing",
+      "value": "Testing…"
+    },
+    {
+      "name": "peer_result",
+      "value": "Peer"
+    },
+    {
+      "name": "tcp_result",
+      "value": "TCP"
+    },
+    {
+      "name": "magicdns_title",
+      "value": "MagicDNS lookup"
+    },
+    {
+      "name": "magicdns_placeholder",
+      "value": "Example: host.tailnet.ts.net"
+    },
+    {
+      "name": "magicdns_accessibility",
+      "value": "MagicDNS hostname"
+    },
+    {
+      "name": "action_resolve_magicdns",
+      "value": "Resolve MagicDNS"
+    },
+    {
+      "name": "action_resolving",
+      "value": "Resolving…"
+    },
+    {
+      "name": "magicdns_result",
+      "value": "MagicDNS"
+    },
+    {
+      "name": "raw_status_title",
+      "value": "Raw status"
+    },
+    {
+      "name": "raw_status_copy_hint",
+      "value": "Long press the text to copy. Remove private endpoints before sharing."
+    },
+    {
+      "name": "identity_title",
+      "value": "Identity"
+    },
+    {
+      "name": "identity_logout_hint",
+      "value": "Signing out removes the saved Tailscale identity from this device."
+    },
+    {
+      "name": "action_logout_forget",
+      "value": "Log out and forget identity"
+    },
+    {
+      "name": "logout_dialog_title",
+      "value": "Log out of Tailscale?"
+    },
+    {
+      "name": "logout_dialog_message",
+      "value": "This removes the saved identity. The next connection requires signing in again."
+    },
+    {
+      "name": "cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "logout",
+      "value": "Log out"
     }
   ]
 }
