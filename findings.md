@@ -183,3 +183,4 @@
 - 修复前 30 秒 socket 从 192 增至 724，新增 532 个全部是未连接 IPv4 UDP；peer 探针调用本身不增长，排除了探针请求路径。
 - 根因位于固定 OpenHarmony-SIG Go 的 `src/net/interface_table_openharmony.go`：两条接口枚举路径都未关闭 ioctl socket，也未释放 `getifaddrs` 结果。补丁在共享实现一次修复所有调用方，不改 Tailscale 的正常 NetMon 轮询。
 - 清理版真机 30 秒前后 FD `47→46`、RSS `188552→188756 KB`，两次 peer 探针均通过，线程与 goroutine 回落；短时资源门禁通过，24 小时长稳仍待执行。
+- 清理版 Stop 显示 Backend、Extension 与 Native 全部停止，`dupOwnership/engineTun/sameProcess` 均通过；随后以新 VPN 进程启动，动态配置恢复，`protected/tunDup/engineTun/sameProcess` 与 Backend RUNNING 均通过。
