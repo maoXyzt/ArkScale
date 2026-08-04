@@ -153,6 +153,9 @@
 | P4 公网直连 | Mate X7 / alpine | Disco 报告实际 UDP direct 路径 | direct endpoint 通过；公网地址不入库 | pass |
 | P4 IPv6 修复前 | Go/NetManager 均含 ULA 地址和路由 | Harmony 原生 TCP 可连接 peer IPv6 | `2301101` / `ENETUNREACH` | red |
 | P4 IPv6 干净构建 | Mate X7 / peer ULA / DERP | 无 source bind、无诊断代码，TSMP 与 TCP 均通过 | peer TSMP 经 DERP；原生 TCP 22 通过 | pass |
+| P4 控制面 DNS 重建 | MagicDNS 关闭再恢复 | DNS/search 数量变化且每次接管新 TUN | `1/1 → 0/0 → 1/1`，Native 门禁保持通过 | pass |
+| P4 控制面路由增加 | 批准一条临时子网路由 | route 数量增加且数据面可用 | `9 → 10`，peer/TCP/MagicDNS 通过 | pass |
+| P4 控制面路由恢复 | 撤销临时子网路由 | route 数量恢复且数据面可用 | `10 → 9`，peer/TCP/MagicDNS 通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -192,16 +195,16 @@
 
 ## 当前诊断门禁
 - P0 已完成；实现不含 Tailscale 的最小 Go c-shared library，并接入现有 Node-API/HAP。
-- P0/P1/P2/P3 已完成；P4 的 peer TSMP、DERP/直连、MagicDNS、IPv4/IPv6 TCP 与 Wi-Fi/蜂窝切换均已通过，继续验证控制面配置变化。
+- P0–P4 已完成；peer TSMP、DERP/直连、MagicDNS、IPv4/IPv6 TCP、Wi-Fi/蜂窝切换和控制面配置重建均已通过，进入 P5。
 
 ## 当前外部输入
-- 无；下一步输入均在固定的 Tailscale v1.82.5 checkout 中。
+- P5 长稳前需对齐 alpine 测试端的 CLI/daemon 版本，并确定 24 小时测试窗口。
 
 ## 五问重启检查
 | 问题 | 答案 |
 |------|------|
-| 我在哪里？ | 阶段 P4：端到端网络 |
-| 我要去哪里？ | 验证控制面路由/DNS 配置变化后的 TUN 重建 |
+| 我在哪里？ | 阶段 P5：稳定性与安全 |
+| 我要去哪里？ | 对齐测试环境，完成 24 小时、异常恢复和资源增长门禁 |
 | 目标是什么？ | API 22+ ArkScale 最小客户端 |
 | 我学到了什么？ | 见 `findings.md` |
 | 我做了什么？ | 见上方记录 |
@@ -234,3 +237,5 @@
 - 后续真机门禁已补齐公网 UDP 直连、MagicDNS、Harmony 原生 IPv4 TCP；敏感公网 endpoint 不入库。
 - IPv6 诊断确认物理公网 IPv6 不是前提，overlay 可经 IPv4/DERP 承载；失败码 `2301101` 是本机 `ENETUNREACH`。
 - 根因是无网关 IPv6 路由仍传入 `::` next-hop；改为空字符串并显式设置 socket family 后，清理 source bind 和全部临时诊断的最终 HAP 同时通过 IPv6 TSMP 与原生 TCP 22。
+- P4 控制面门禁先关闭/恢复 MagicDNS，再批准/撤销一条临时子网路由；DNS/search 与 route 数量按预期变化，每次均串行重建并接管新 TUN。
+- 原配置恢复后，peer TSMP、Harmony 原生 TCP 与 MagicDNS 均重新通过；P4 完成，进入 P5。

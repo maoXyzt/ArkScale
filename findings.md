@@ -168,3 +168,11 @@
 - Go 配置与 Harmony NetManager 属性都包含 IPv6 地址和路由；`ifconfig` 未显示、`isIPv6LinkValid=false` 不能据此判断 VPN ULA 路由缺失，后者面向可用的全局/默认 IPv6 链路。
 - Harmony `NetAddress.family` 省略时默认 IPv4，IPv6 TCP 目标必须显式设为 `2`。连接返回的 `2301101` 对应本机 `ENETUNREACH`，不是 peer 或 DERP 超时。
 - IPv6 路由的根因是 `hasGateway=false` 时仍传入非空 `gateway.address='::'`；目标系统会继续把它当作 next-hop。改为空字符串后无需显式 source bind，IPv6 TSMP 与 TCP 均通过。
+
+## P4 控制面配置重建（2026-08-04）
+
+- pinned `router.CallbackRouter` 会分别比较 route 与 DNS 配置，只在实际变化时调用 `SetBoth`；因此递增的 `configGen` 可作为有效配置变化证据，不需要另造配置 hash。
+- MagicDNS 关闭时 DNS/search 数量从 `1/1` 变为 `0/0`，恢复后回到 `1/1`；两次变化都完成新 TUN 接管。恢复后的首次探针曾回填短名，手工 FQDN 已可解析；后续新进程的探针自动回填 FQDN 并通过，因此没有为未稳定复现的短名状态增加补丁。
+- 批准一条临时子网路由后 route 数量从 9 增至 10，撤销后恢复为 9；两次变化都递增 generation，并保持 `tunDup/engineTun/sameProcess` 为 PASS。
+- 临时路由增加与恢复后，peer TSMP、Harmony 原生 TCP 和 MagicDNS 都重新通过；P4 控制面变化门禁完成。
+- alpine 测试端报告 CLI 与 daemon 版本不一致。它未阻塞 P4，但进入 P5 长稳前应先对齐版本，避免把 peer 环境差异混入稳定性结论。

@@ -2,18 +2,18 @@
 
 ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自用的 Tailscale 全设备 VPN 客户端。
 
-> 当前仓库已完成 P0–P3，并在 P4 通过 peer TSMP、自建 DERP、可观测直连、IPv4/IPv6 peer TCP 和 MagicDNS 真机门禁。
+> 当前仓库已完成 P0–P4，最小客户端已通过目标真机端到端门禁；P5 长稳、安全与可交付性仍待完成。
 
 ## 当前判断
 
-这条路线已通过 backend PoC，但还不能宣称“已完整支持 HarmonyOS NEXT”。截至 2026-08-03，证据边界如下：
+这条路线已通过最小客户端可用性门禁，但还不能宣称“已完整支持 HarmonyOS NEXT”。截至 2026-08-04，证据边界如下：
 
 | 层级 | 已确认 | 尚未确认 |
 | --- | --- | --- |
-| HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建、peer TSMP、DERP/直连、IPv4/IPv6 peer TCP、MagicDNS 和 Wi-Fi/蜂窝切换门禁。 | 控制面配置变化后的重建和长期后台行为。 |
+| HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建、控制面配置重建、peer TSMP、DERP/直连、IPv4/IPv6 peer TCP、MagicDNS 和 Wi-Fi/蜂窝切换门禁。 | 长期后台行为与异常恢复。 |
 | Go | OpenHarmony-SIG Go 1.24 的 AArch64 `c-shared` 已通过加载、100 次启停、30 分钟 soak，并运行 Tailscale userspace engine 与 Quad100 netstack；IPv4/IPv6 peer TSMP、TCP 和 MagicDNS A 记录均已实际往返。 | 长时间资源稳定性。 |
 | 相邻项目 | ClashBox 公开实现了 HarmonyOS NEXT 上的 Go `.so`、VPN Ability、TUN FD 与逐 socket `protect`，并提供 HAP Release。 | ClashBox 不是 Tailscale，不能证明 WireGuard、DERP、MagicDNS 和 Tailscale 控制面可用。 |
-| Tailscale | LocalBackend 已在真机完成交互式登录、`Running`、动态 `router.Config`/`dns.OSConfig`、重启免登录，并通过自建 DERP 与公网 UDP 直连到达在线 peer；系统 VPN 内的原生 TCP socket 已通过 IPv4/IPv6 到达 peer，MagicDNS 也已通过。 | 异常恢复。 |
+| Tailscale | LocalBackend 已在真机完成交互式登录、`Running`、动态 `router.Config`/`dns.OSConfig`、重启免登录，并通过自建 DERP 与公网 UDP 直连到达在线 peer；DNS 开关和临时子网路由增删均触发 TUN 重建，重建后 peer、TCP 与 MagicDNS 继续可用。 | 异常恢复。 |
 
 ## 已纠正的关键假设
 
@@ -81,6 +81,8 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 
 `Probe peer` 的 Disco 结果已在同一真机显示公网 UDP `direct` 路径。验证时手机侧虽然是目的地址相关 NAT 映射且没有 UPnP/NAT-PMP/PCP，仍成功与具备稳定 UDP 映射的 peer 建立直连；公网地址和端口不入库。
 
+控制面重建门禁会记录 `configGen`、`fromGen` 和 route/DNS 数量。真机先关闭再恢复 MagicDNS，随后批准并撤销一条临时子网路由；DNS 数量和路由数量分别按预期变化，每次新 TUN 的 `tunDup/engineTun/sameProcess` 均为 PASS，恢复原配置后 peer、TCP 与 MagicDNS 仍可用。
+
 ## 实施门禁
 
 1. 固定 Tailscale 和 Go commit，完成依赖闭包编译并登记所有平台补丁。
@@ -110,7 +112,7 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 └── scripts/               # HAP、依赖、工具链和 engine 构建
 ```
 
-当前处于 P4：peer TSMP、自建 DERP、可观测直连、IPv4/IPv6 peer TCP 与 MagicDNS 已通过，下一步验证控制面配置变化；完整产品 UI 仍不在范围内。
+当前处于 P5：P0–P4 的最小客户端功能门禁已通过，下一步验证 24 小时长稳、异常恢复、资源增长、安全与可交付性；完整产品 UI 仍不在范围内。
 
 ## 安全
 

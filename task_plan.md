@@ -4,7 +4,7 @@
 按已确认的门禁顺序完成可复现的 Tailscale/OpenHarmony 编译、Go c-shared 真机、VPN/TUN、Tailscale backend 和端到端验证。
 
 ## 当前阶段
-阶段 P4（in_progress：端到端网络）
+阶段 P5（in_progress：稳定性与安全）
 
 ## 各阶段
 
@@ -52,13 +52,14 @@
 - [x] 验证 peer TSMP 与自建 DERP 数据路径
 - [x] 验证 peer TCP、直连、MagicDNS、IPv4/IPv6
 - [x] 验证 Wi-Fi/蜂窝切换
-- [ ] 验证控制面路由/DNS 配置变化
-- **状态：** in_progress
+- [x] 验证控制面路由/DNS 配置变化
+- **状态：** completed
 
 ### 阶段 P5：稳定性与安全
+- [ ] 对齐测试 peer 的 CLI/daemon 版本
 - [ ] 完成 24 小时、异常恢复和资源泄漏测试
 - [ ] 生成设备矩阵、许可证与 SBOM
-- **状态：** pending
+- **状态：** in_progress
 
 ## 已做决策
 | 决策 | 理由 |
