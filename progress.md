@@ -162,6 +162,7 @@
 | P5 清理版生命周期 | 真机 Stop 后重新 Start | 完整停止并以新 VPN 进程恢复动态配置 | Stop/Start、Backend、TUN 与 FD 所有权门禁全部通过 | pass |
 | P5 UI 任务重建 | 划掉 UI 后重新打开 | 独立 VPN 不重启且页面恢复状态 | VPN PID/uptime 连续，Backend、TUN、peer 与 FD 均正常 | pass |
 | P5 强制停止恢复 | 系统强制停止后重新打开并 Start | 状态归零、身份持久化且数据面恢复 | 新 VPN 进程无需登录，Backend、TUN、peer 通过，FD 46 | pass |
+| P5 飞行模式恢复 | 飞行模式开启 30 秒后关闭 | 同一 VPN 进程恢复默认网络与全部数据面 | netId/switch 更新，peer、TCP、MagicDNS 通过，FD 46 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |

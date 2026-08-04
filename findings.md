@@ -186,3 +186,4 @@
 - 清理版 Stop 显示 Backend、Extension 与 Native 全部停止，`dupOwnership/engineTun/sameProcess` 均通过；随后以新 VPN 进程启动，动态配置恢复，`protected/tunDup/engineTun/sameProcess` 与 Backend RUNNING 均通过。
 - 从最近任务划掉并重开 UI 后，独立 VPN 进程保持原 PID 和连续 uptime，页面通过共享状态通道恢复 READY/RUNNING；peer 继续通过且 FD 保持 46。
 - 系统强制停止后页面状态干净归零；重新 Start 创建新 VPN 进程，无需再次登录即可恢复动态配置、Backend RUNNING 和 peer 数据面，FD 保持 46。
+- 飞行模式往返后同一 VPN 进程保持 READY/RUNNING，默认网络 netId 与 switch 计数按预期变化；peer、原生 TCP 和 MagicDNS 全部恢复，FD 保持 46。
