@@ -177,6 +177,7 @@
 | P5 Linux SDK 版本门禁 | Native SDK 元数据与 Clang | API 24 + ELF x86_64，不合规时 Docker 前失败 | API 23 负例被拒绝；API 24 完整 P0 通过 | pass |
 | P5 固定源码完整性 | Go/Tailscale checkout + 登记补丁 | HEAD、完整 diff 与未跟踪文件均无漂移 | 未跟踪文件/额外 tracked 修改负例被拒绝；完整 P0 通过 | pass |
 | P5 SIG Go 缓存版本 | 缓存的 `bin/go` | 必须精确为 Go 1.24.5 linux/amd64 | 容器输出精确匹配，完整 P0 通过 | pass |
+| P5 固定输入端到端打包 | digest builder + API 24 SDK + 精确依赖 diff → HAP | 当前 P0 engine 进入 unsigned/signed HAP | 完整 P0、`build:hap` 与双 HAP 校验通过 | pass |
 | P5 peer 版本对齐 | 重启 alpine tailscale 服务并复查版本 | CLI/daemon 不再报告版本不一致 | 无版本警告，后续 peer/TCP/MagicDNS 回归通过 | pass |
 | P5 显式登出本地门禁 | Go `LocalBackend.Logout` → C ABI → Node-API → VPN Extension → UI | Stop 保留身份；Logout 成功后关闭 VPN 且下次需登录 | Go 单测、P0、HAP 构建与两类 HAP 符号校验通过 | pass |
 | P5 登出防误触 | 原生确认对话框 | 未确认时不得发出 Logout 命令 | API 24 ArkTS 与签名 HAP 构建通过 | pass |
