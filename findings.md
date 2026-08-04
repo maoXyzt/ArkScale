@@ -176,3 +176,10 @@
 - 批准一条临时子网路由后 route 数量从 9 增至 10，撤销后恢复为 9；两次变化都递增 generation，并保持 `tunDup/engineTun/sameProcess` 为 PASS。
 - 临时路由增加与恢复后，peer TSMP、Harmony 原生 TCP 和 MagicDNS 都重新通过；P4 控制面变化门禁完成。
 - alpine 测试端报告 CLI 与 daemon 版本不一致。它未阻塞 P4，但进入 P5 长稳前应先对齐版本，避免把 peer 环境差异混入稳定性结论。
+
+## P5 短时资源稳定性（2026-08-04）
+
+- CommonEvent 跨进程传输在当前真机持续增长 FD，已改为应用私有 EL1 文件上的四槽共享 mmap mailbox；每槽单写者、latest-only，Node-API watcher 仅在序号变化时通知 ArkTS。
+- 修复前 30 秒 socket 从 192 增至 724，新增 532 个全部是未连接 IPv4 UDP；peer 探针调用本身不增长，排除了探针请求路径。
+- 根因位于固定 OpenHarmony-SIG Go 的 `src/net/interface_table_openharmony.go`：两条接口枚举路径都未关闭 ioctl socket，也未释放 `getifaddrs` 结果。补丁在共享实现一次修复所有调用方，不改 Tailscale 的正常 NetMon 轮询。
+- 清理版真机 30 秒前后 FD `47→46`、RSS `188552→188756 KB`，两次 peer 探针均通过，线程与 goroutine 回落；短时资源门禁通过，24 小时长稳仍待执行。

@@ -74,6 +74,7 @@ go build -buildmode=c-shared -o libarkscale.so ./cmd/arkscale-mobile
 - 官方指南当前明确的是 Linux/x86_64 主机到 OpenHarmony/arm64 的交叉编译。macOS 主机是否可直接使用同一套 fork/预编译工具链，需要在 ArkScale CI 或本地重新验证。
 - 该 fork 为降低依赖适配量，在 `GOOS=openharmony` 时让 `runtime.GOOS` 报告 `linux`；OpenHarmony 专用差异要用 `//go:build openharmony` 或 `runtime.IsOpenharmony`。这会提高普通 Linux 代码的复用率，但不保证所有 Linux syscall 在应用沙箱中可用。
 - “源码支持 c-shared”不等于“当前 Tailscale 完整依赖闭包可编译”，更不等于“加载、GC、goroutine、DNS、UDP 和进程反复启停已在 HarmonyOS NEXT 真机稳定”。这些都必须由 PoC 给出日志和产物。
+- 固定 SIG Go 提交的 `src/net/interface_table_openharmony.go` 在两条接口枚举路径中都创建了 IPv4 UDP ioctl socket，却未调用 `syscall.Close`，同时取得 `getifaddrs` 结果后未释放。真机曾在 30 秒内从 192 增至 724 个 socket，新增项均为未连接 IPv4 UDP；补齐资源释放后，清理版 30 秒回归为 FD `47→46`、RSS `188552→188756 KB`，两次 peer 探针均通过。仓库保留可重放补丁，但该短时结果仍不等于 24 小时稳定。
 
 因此，`docs/design.md` 中 `GOOS=linux` 配合 OHOS clang 的做法不应保留为主路径。它曾被项目自定义工具链采用，但当前可复核的官方 SIG 路径是 `GOOS=openharmony`；也不应照搬第三方历史脚本中的非标准 `-tlsmodegd` 参数。
 

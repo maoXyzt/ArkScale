@@ -156,6 +156,9 @@
 | P4 控制面 DNS 重建 | MagicDNS 关闭再恢复 | DNS/search 数量变化且每次接管新 TUN | `1/1 → 0/0 → 1/1`，Native 门禁保持通过 | pass |
 | P4 控制面路由增加 | 批准一条临时子网路由 | route 数量增加且数据面可用 | `9 → 10`，peer/TCP/MagicDNS 通过 | pass |
 | P4 控制面路由恢复 | 撤销临时子网路由 | route 数量恢复且数据面可用 | `10 → 9`，peer/TCP/MagicDNS 通过 | pass |
+| P5 资源泄漏复现 | 同一真机间隔 30 秒采样 | FD、socket 类型与调用路径可归因 | socket `192 → 724`，新增 532 个均为未连接 IPv4 UDP | red |
+| P5 SIG Go 资源修复 | 关闭接口枚举 socket 并释放 `getifaddrs` | FD/RSS 不持续增长且 peer 可用 | FD `47 → 46`、RSS `+204 KB`，两次 peer 均通过 | pass |
+| P5 清理版构建 | `build:p0`、`build:hap`、`build:p1` | 补丁可重放，AArch64 engine 与 HAP 校验通过 | 三条构建链均通过 | pass |
 
 ## 错误日志
 | 时间戳 | 错误 | 尝试次数 | 解决方案 |
@@ -192,10 +195,11 @@
 | 2026-08-03 | P4 peer 探针和 Stop 一起长期挂起 | 1 | 不依赖上游同步 `Ping` 自行遵守 context；异步执行并在调用侧按 5 秒 deadline 返回 |
 | 2026-08-03 | DERP 已恢复但 TSMP 无握手且 `tx=0` | 1 | 对照 pinned 官方启动顺序，补齐 `sys.Tun.Get().Start()` 并加入构建门禁 |
 | 2026-08-04 | Go 与系统均有 IPv6 配置，但原生 TCP 返回 `2301101` | 1 | 显式设置 IPv6 address family，并把 `hasGateway=false` 路由的 next-hop 从 `::` 改为空字符串 |
+| 2026-08-04 | VPN 进程 FD 持续增长 | 1 | 按 FD 类型和调用路径定位到 SIG Go 接口枚举未释放 socket/ifaddrs；在共享实现修复并完成真机 A/B |
 
 ## 当前诊断门禁
 - P0 已完成；实现不含 Tailscale 的最小 Go c-shared library，并接入现有 Node-API/HAP。
-- P0–P4 已完成；peer TSMP、DERP/直连、MagicDNS、IPv4/IPv6 TCP、Wi-Fi/蜂窝切换和控制面配置重建均已通过，进入 P5。
+- P0–P4 已完成；P5 的跨进程传输与 SIG Go 接口枚举泄漏已修复，短时真机资源回归通过，24 小时与异常恢复仍待完成。
 
 ## 当前外部输入
 - P5 长稳前需对齐 alpine 测试端的 CLI/daemon 版本，并确定 24 小时测试窗口。

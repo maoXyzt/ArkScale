@@ -445,6 +445,7 @@ target_link_libraries(entry PUBLIC
 
 ### P5：稳定性与安全
 
+- 截至 2026-08-04，已修复固定 OpenHarmony-SIG Go 提交中 `net.Interfaces()` 未关闭 IPv4 UDP ioctl socket、未释放 `getifaddrs` 结果的问题。修复后同一真机 30 秒前后 FD `47→46`、RSS `+204 KB`，两次 peer 探针均通过；这不替代 24 小时门禁；
 - 24 小时连接；
 - 进程杀死、Extension 销毁、系统重启和重复连接；
 - 登录取消、凭据吊销、控制面不可达；

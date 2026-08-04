@@ -11,7 +11,7 @@ ArkScale 是一个实验性项目，目标是在 HarmonyOS NEXT 上实现可自�
 | 层级 | 已确认 | 尚未确认 |
 | --- | --- | --- |
 | HarmonyOS VPN | Mate X7 真机已通过独立 VPN 进程、`protectProcessNet()`、TUN FD 所有权、动态 TUN 创建、控制面配置重建、peer TSMP、DERP/直连、IPv4/IPv6 peer TCP、MagicDNS 和 Wi-Fi/蜂窝切换门禁。 | 长期后台行为与异常恢复。 |
-| Go | OpenHarmony-SIG Go 1.24 的 AArch64 `c-shared` 已通过加载、100 次启停、30 分钟 soak，并运行 Tailscale userspace engine 与 Quad100 netstack；IPv4/IPv6 peer TSMP、TCP 和 MagicDNS A 记录均已实际往返。 | 长时间资源稳定性。 |
+| Go | OpenHarmony-SIG Go 1.24 的 AArch64 `c-shared` 已通过加载、100 次启停、30 分钟 soak，并运行 Tailscale userspace engine 与 Quad100 netstack；已修复固定工具链中 `net.Interfaces()` 未释放资源的问题，短时真机资源回归稳定。 | 24 小时资源稳定性。 |
 | 相邻项目 | ClashBox 公开实现了 HarmonyOS NEXT 上的 Go `.so`、VPN Ability、TUN FD 与逐 socket `protect`，并提供 HAP Release。 | ClashBox 不是 Tailscale，不能证明 WireGuard、DERP、MagicDNS 和 Tailscale 控制面可用。 |
 | Tailscale | LocalBackend 已在真机完成交互式登录、`Running`、动态 `router.Config`/`dns.OSConfig`、重启免登录，并通过自建 DERP 与公网 UDP 直连到达在线 peer；DNS 开关和临时子网路由增删均触发 TUN 重建，重建后 peer、TCP 与 MagicDNS 继续可用。 | 异常恢复。 |
 
@@ -55,6 +55,8 @@ ARKSCALE_LINUX_SDK=/absolute/path/to/linux-sdk \
 P0 默认使用 `https://goproxy.cn,direct` 下载公开 Go modules；可通过标准 `GOPROXY` 环境变量覆盖，checksum 校验保持启用。
 
 该命令会获取并校验固定的 Go/Tailscale commit，构建 SIG Go 工具链、编译 `c-shared` engine，并检查架构、动态依赖和 C ABI 导出符号。当前固定输入已经通过 P0。
+
+固定 SIG Go 提交的 OpenHarmony `net.Interfaces()` 实现未关闭 ioctl socket，也未释放 `getifaddrs` 结果。仓库在 `patches/ohos-go/` 保存并由构建脚本幂等重放修复；修复已通过 P0 和短时真机 FD/RSS 回归。升级 SIG Go 时必须重新审计该补丁。
 
 `engine/cmd/arkscale` 已组装显式的 portable NetMon、CallbackRouter、userspace engine、Quad100 netstack 与 LocalBackend，并通过事件 ABI 向 VPN Extension 提供状态、登录 URL、地址、路由、DNS 和 MTU。
 
@@ -107,12 +109,13 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 ├── docs/                  # 设计与事实核对
 ├── engine/                # Go c-shared C ABI 与依赖闭包入口
 ├── entry/                 # Stage/ArkTS/Node-API 模块
+├── patches/ohos-go/       # OpenHarmony-SIG Go 可重放修复
 ├── patches/tailscale/     # 可重放的平台补丁登记
 ├── smoke/                 # 不含 Tailscale 的 P1 Go runtime 探针
 └── scripts/               # HAP、依赖、工具链和 engine 构建
 ```
 
-当前处于 P5：P0–P4 的最小客户端功能门禁已通过，下一步验证 24 小时长稳、异常恢复、资源增长、安全与可交付性；完整产品 UI 仍不在范围内。
+当前处于 P5：P0–P4 功能门禁和短时资源回归已通过，下一步验证 24 小时长稳、异常恢复、安全与可交付性；完整产品 UI 仍不在范围内。
 
 ## 安全
 
