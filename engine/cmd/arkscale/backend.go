@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,13 +29,17 @@ import (
 	"tailscale.com/tsd"
 	"tailscale.com/types/logger"
 	"tailscale.com/types/logid"
+	"tailscale.com/types/netmap"
 	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/netstack"
 	"tailscale.com/wgengine/router"
 )
 
-const eventSchemaVersion = 1
+const (
+	eventSchemaVersion = 1
+	peerListLimit      = 50
+)
 
 var engineEvents = make(chan []byte, 64)
 
@@ -110,6 +115,23 @@ type peerProbeEvent struct {
 	LatencyMS     float64           `json:"latencyMs,omitempty"`
 	Error         string            `json:"error,omitempty"`
 	Process       processStatsEvent `json:"process"`
+}
+
+type peerListEvent struct {
+	SchemaVersion int                `json:"schemaVersion"`
+	Type          string             `json:"type"`
+	Total         int                `json:"total"`
+	Peers         []peerSummaryEvent `json:"peers"`
+}
+
+type peerSummaryEvent struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	DNSName     string `json:"dnsName,omitempty"`
+	Address     string `json:"address,omitempty"`
+	OS          string `json:"os,omitempty"`
+	Online      bool   `json:"online"`
+	OnlineKnown bool   `json:"onlineKnown"`
 }
 
 type processStatsEvent struct {
@@ -274,6 +296,9 @@ func setDefaultEnv(name, value string) error {
 }
 
 func (r *backendRuntime) notify(notify ipn.Notify) {
+	if notify.NetMap != nil {
+		_ = r.emit(newPeerListEvent(notify.NetMap))
+	}
 	if notify.State != nil {
 		_ = r.emit(stateEvent{
 			SchemaVersion: eventSchemaVersion,
@@ -300,6 +325,64 @@ func (r *backendRuntime) notify(notify ipn.Notify) {
 	if notify.ErrMessage != nil {
 		r.emitHealth("error", "backend reported an error")
 	}
+}
+
+func newPeerListEvent(networkMap *netmap.NetworkMap) peerListEvent {
+	event := peerListEvent{SchemaVersion: eventSchemaVersion, Type: "peer-list", Peers: []peerSummaryEvent{}}
+	if networkMap == nil {
+		return event
+	}
+	event.Total = len(networkMap.Peers)
+	for _, peer := range networkMap.Peers {
+		item := peerSummaryEvent{
+			ID:      string(peer.StableID()),
+			Name:    peer.ComputedName(),
+			DNSName: strings.TrimSuffix(peer.Name(), "."),
+		}
+		for _, prefix := range peer.Addresses().All() {
+			address := prefix.Addr()
+			if item.Address == "" || address.Is4() {
+				item.Address = address.String()
+			}
+			if address.Is4() {
+				break
+			}
+		}
+		if item.Name == "" {
+			item.Name = item.DNSName
+		}
+		if item.Name == "" {
+			item.Name = item.Address
+		}
+		if hostinfo := peer.Hostinfo(); hostinfo.Valid() {
+			item.OS = hostinfo.OS()
+		}
+		item.Online, item.OnlineKnown = peer.Online().GetOk()
+		event.Peers = append(event.Peers, item)
+	}
+	sort.SliceStable(event.Peers, func(i, j int) bool {
+		left, right := event.Peers[i], event.Peers[j]
+		leftRank, rightRank := peerOnlineRank(left), peerOnlineRank(right)
+		if leftRank != rightRank {
+			return leftRank < rightRank
+		}
+		return strings.ToLower(left.Name) < strings.ToLower(right.Name)
+	})
+	// ponytail: the shared mailbox is intentionally bounded; add a paged peer API when tailnets over 50 peers are a target.
+	if len(event.Peers) > peerListLimit {
+		event.Peers = event.Peers[:peerListLimit]
+	}
+	return event
+}
+
+func peerOnlineRank(peer peerSummaryEvent) int {
+	if peer.OnlineKnown && peer.Online {
+		return 0
+	}
+	if peer.OnlineKnown {
+		return 1
+	}
+	return 2
 }
 
 func eventState(state ipn.State) string {

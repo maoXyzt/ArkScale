@@ -77,6 +77,8 @@ P1 页面会调用 Go runtime 的 goroutine、channel、timer 和 GC 冒烟测�
 
 首页使用一个随状态变化的 `连接` / `断开连接` 主按钮。首次连接需完成系统 VPN 授权和 Tailscale 交互登录；成功后连接状态显示“已连接”。展开“诊断工具”可核对 `Backend: RUNNING`、`Extension: READY configGen=...` 和 Native 的 `protected/tunDup/engineTun/sameProcess=PASS`；停止后应显示 `Backend: STOPPED` 与 `dupOwnership/engineTun=PASS`。
 
+连接后，“其他设备”会显示 LocalBackend 当前 NetMap 中的 peer，在线设备优先，并可直接发起已验证的 TSMP 测试。首页最多内联显示 50 个 peer；更大的 tailnet 暂不提供分页设备页。
+
 身份区域的“退出并删除身份”经二次确认后请求 Tailscale backend 登出并删除当前 profile，成功后停止 VPN Extension；下次连接必须重新交互登录。普通断开不删除身份。
 
 在“诊断工具”中输入 peer 的 Tailscale IP 并执行“测试节点”后，页面会自动填入控制面下发的完整 DNS 名称。“解析 MagicDNS”必须通过 VPN 的 `100.100.100.100` 解析到该 peer 的预期 Tailscale IP；该门禁已于 2026-08-03 在 Mate X7 上通过，设备与 tailnet 标识不入库。
@@ -105,6 +107,7 @@ HarmonyOS `NetAddress.family` 省略时默认 IPv4，因此 IPv6 socket 必须�
 - [事实核对与开源项目验证](docs/implementation-research.md)：逐项证据、源码链接、ClashBox 与 Tailscale Android 的可借鉴范围，以及仍待 ArkScale 验证的事项。
 - [合规与安全交付](docs/compliance.md)：staged-secret 门禁、SBOM/许可证产物和自部署交付边界。
 - [设备验证矩阵](docs/device-matrix.md)：已验证真机、通过门禁和明确未覆盖项。
+- [HarmonyOS 服务卡片可行性](docs/harmonyos-service-card-research.md)：官方能力、进程/刷新限制和 ArkScale 首版建议。
 
 ## 仓库状态
 

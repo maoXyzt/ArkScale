@@ -4,6 +4,7 @@ export const COMMAND_KEY = 0;
 export const STATUS_KEY = 1;
 export const NETWORK_KEY = 2;
 export const ENGINE_KEY = 3;
+export const PEERS_KEY = 4;
 
 export class ProbeChannel {
   private watchedKeys: Array<number>;

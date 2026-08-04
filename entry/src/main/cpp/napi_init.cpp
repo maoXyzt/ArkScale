@@ -25,7 +25,7 @@ static uint64_t vpnTunGeneration = 0;
 static char vpnProbeStatus[128] = "IDLE";
 
 constexpr uint32_t PROBE_CHANNEL_MAGIC = 0x41524b53;
-constexpr size_t PROBE_CHANNEL_SLOT_COUNT = 4;
+constexpr size_t PROBE_CHANNEL_SLOT_COUNT = 5;
 constexpr size_t PROBE_CHANNEL_SLOT_SIZE = 64 * 1024;
 // ponytail: 4096 is ample for this client; raise it if observed FD use approaches the ceiling.
 constexpr rlim_t PROCESS_FD_SCAN_LIMIT = 4096;

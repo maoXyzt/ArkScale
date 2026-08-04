@@ -76,6 +76,13 @@ Use the HarmonyOS system typeface.
 - Compact label/value rows for backend, network, and VPN service.
 - Values may truncate here; complete values remain available in raw diagnostics.
 
+### Peer list
+
+- Appears only as a secondary card below the connection overview.
+- Sort online peers first; always pair the status color with Online, Offline, or Unknown text.
+- A row exposes the peer name, preferred Tailscale address, OS, and one native 44 vp test action.
+- The inline list is capped at 50 peers; add a dedicated virtualized page only when larger tailnets are in scope.
+
 ### Diagnostics
 
 - Collapsed by default.

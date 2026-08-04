@@ -165,6 +165,42 @@
       "value": "Cellular"
     },
     {
+      "name": "devices_title",
+      "value": "Devices"
+    },
+    {
+      "name": "devices_connect_hint",
+      "value": "Connect to load devices in your tailnet."
+    },
+    {
+      "name": "devices_loading",
+      "value": "Loading devices…"
+    },
+    {
+      "name": "devices_empty",
+      "value": "No other devices found."
+    },
+    {
+      "name": "devices_load_failed",
+      "value": "Unable to load devices."
+    },
+    {
+      "name": "peer_online",
+      "value": "Online"
+    },
+    {
+      "name": "peer_offline",
+      "value": "Offline"
+    },
+    {
+      "name": "peer_unknown",
+      "value": "Status unknown"
+    },
+    {
+      "name": "action_probe_peer_short",
+      "value": "Test"
+    },
+    {
       "name": "diagnostics_title",
       "value": "Diagnostics"
     },

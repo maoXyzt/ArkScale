@@ -2,7 +2,7 @@ import { contextConstant } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { connection, VpnExtensionAbility, vpnExtension } from '@kit.NetworkKit';
 import bridge from 'libarkscale_bridge.so';
-import { COMMAND_KEY, ENGINE_KEY, NETWORK_KEY, ProbeChannel, STATUS_KEY } from '../ProbeChannel';
+import { COMMAND_KEY, ENGINE_KEY, NETWORK_KEY, PEERS_KEY, ProbeChannel, STATUS_KEY } from '../ProbeChannel';
 
 
 interface EnginePrefix {
@@ -55,6 +55,7 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   private lastStatus: string = 'ON_CREATE';
   private lastNetworkStatus?: string;
   private lastEngineEvent?: string;
+  private lastPeersEvent?: string;
   private channelChanged = (key: number): void => {
     if (key !== COMMAND_KEY) {
       return;
@@ -182,6 +183,7 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     if (errorCode === 0) {
       bridge.stopVpnProbe();
       this.stopCompleted = true;
+      this.lastPeersEvent = undefined;
       const state = logout ? 'logged-out' : 'stopped';
       this.publishEngineEvent(JSON.stringify({ schemaVersion: 1, type: 'state', state: state }));
       this.publishStatus(logout ? 'LOGGED_OUT' : 'STOPPED');
@@ -287,6 +289,10 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
           throw new Error('Invalid Tailscale login URL');
         }
         this.publishEngineEvent(eventJson);
+      } else if (event.type === 'peer-list') {
+        this.lastPeersEvent = eventJson;
+        this.channel?.publish(PEERS_KEY, eventJson)
+          .catch((error: BusinessError): void => console.error(`Peer list publish failed: ${error.code ?? -1}`));
       } else if (event.type === 'state' || event.type === 'health') {
         this.publishEngineEvent(eventJson);
       }
@@ -449,6 +455,10 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     }
     if (this.lastEngineEvent !== undefined) {
       this.publishEngineEvent(this.lastEngineEvent);
+    }
+    if (this.lastPeersEvent !== undefined) {
+      this.channel?.publish(PEERS_KEY, this.lastPeersEvent)
+        .catch((error: BusinessError): void => console.error(`Peer list publish failed: ${error.code ?? -1}`));
     }
   }
 }

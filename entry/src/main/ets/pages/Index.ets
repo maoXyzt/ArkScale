@@ -2,7 +2,7 @@ import { common, contextConstant } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { connection, socket, vpnExtension } from '@kit.NetworkKit';
 import bridge from 'libarkscale_bridge.so';
-import { COMMAND_KEY, ENGINE_KEY, NETWORK_KEY, ProbeChannel, STATUS_KEY } from '../ProbeChannel';
+import { COMMAND_KEY, ENGINE_KEY, NETWORK_KEY, PEERS_KEY, ProbeChannel, STATUS_KEY } from '../ProbeChannel';
 
 const BUNDLE_NAME = 'com.arkscale.client';
 
@@ -30,6 +30,23 @@ interface ProcessStats {
   goroutines: number;
 }
 
+interface PeerSummary {
+  id: string;
+  name: string;
+  dnsName: string;
+  address: string;
+  os: string;
+  online: boolean;
+  onlineKnown: boolean;
+}
+
+interface PeerListEvent {
+  schemaVersion: number;
+  type: string;
+  total: number;
+  peers: Array<PeerSummary>;
+}
+
 @Entry
 @Component
 struct Index {
@@ -48,6 +65,10 @@ struct Index {
   @State private magicDnsTarget: string = '';
   @State private magicDnsStatus: string = 'NOT TESTED';
   @State private resourceStatus: string = 'NOT MEASURED';
+  @State private peers: Array<PeerSummary> = [];
+  @State private peerTotal: number = 0;
+  @State private peersLoaded: boolean = false;
+  @State private peerListFailed: boolean = false;
   @State private diagnosticsExpanded: boolean = false;
   private channel?: ProbeChannel;
   private channelSubscribed: boolean = false;
@@ -60,6 +81,8 @@ struct Index {
     }
     if (key === ENGINE_KEY) {
       this.handleEngineEvent(payload);
+    } else if (key === PEERS_KEY) {
+      this.handlePeerList(payload);
     } else if (key === STATUS_KEY || key === NETWORK_KEY) {
       this.handleVpnStatus(payload);
     }
@@ -103,7 +126,7 @@ struct Index {
     }
     this.channel = new ProbeChannel(
       context.createAreaModeContext(contextConstant.AreaMode.EL1).filesDir,
-      [STATUS_KEY, NETWORK_KEY, ENGINE_KEY]);
+      [STATUS_KEY, NETWORK_KEY, ENGINE_KEY, PEERS_KEY]);
     return this.channel;
   }
 
@@ -153,6 +176,7 @@ struct Index {
     this.tcpStatus = 'NOT TESTED';
     this.magicDnsStatus = 'NOT TESTED';
     this.resourceStatus = 'NOT MEASURED';
+    this.clearPeers();
     this.controlStatus = 'REQUESTING';
     try {
       await vpnExtension.startVpnExtensionAbility({
@@ -252,6 +276,8 @@ struct Index {
         this.engineStatus = event.state.toUpperCase();
         if (event.state === 'running') {
           this.loginUrl = '';
+        } else if (event.state === 'stopped' || event.state === 'logged-out') {
+          this.clearPeers();
         }
       } else if (event.type === 'login-url' && event.url !== undefined) {
         this.loginUrl = event.url;
@@ -270,6 +296,42 @@ struct Index {
     } catch (error) {
       this.engineStatus = `EVENT ERROR: ${(error as Error).message}`;
     }
+  }
+
+  private handlePeerList(eventJson: string): void {
+    try {
+      const event = JSON.parse(eventJson) as PeerListEvent;
+      if (event.schemaVersion !== 1 || event.type !== 'peer-list' || !Array.isArray(event.peers) ||
+        event.peers.length > 50 || event.total < event.peers.length || event.total > 100000 ||
+        !event.peers.every((peer: PeerSummary): boolean => this.validPeer(peer))) {
+        throw new Error('invalid peer list');
+      }
+      this.peers = event.peers;
+      this.peerTotal = event.total;
+      this.peersLoaded = true;
+      this.peerListFailed = false;
+    } catch (error) {
+      this.peers = [];
+      this.peerTotal = 0;
+      this.peersLoaded = false;
+      this.peerListFailed = true;
+    }
+  }
+
+  private validPeer(peer: PeerSummary): boolean {
+    return typeof peer.id === 'string' && peer.id.length <= 128 &&
+      typeof peer.name === 'string' && peer.name.length > 0 && peer.name.length <= 253 &&
+      typeof peer.dnsName === 'string' && peer.dnsName.length <= 253 &&
+      typeof peer.address === 'string' && peer.address.length <= 64 &&
+      typeof peer.os === 'string' && peer.os.length <= 64 &&
+      typeof peer.online === 'boolean' && typeof peer.onlineKnown === 'boolean';
+  }
+
+  private clearPeers(): void {
+    this.peers = [];
+    this.peerTotal = 0;
+    this.peersLoaded = false;
+    this.peerListFailed = false;
   }
 
   private async openLogin(): Promise<void> {
@@ -370,6 +432,26 @@ struct Index {
     return length > 0 && length <= 253;
   }
 
+  private selectPeerAndProbe(peer: PeerSummary): void {
+    if (!this.isConnected() || peer.address.length === 0) {
+      return;
+    }
+    this.peerTarget = peer.address;
+    this.magicDnsTarget = peer.dnsName;
+    this.probePeer();
+  }
+
+  private peerStatusText(peer: PeerSummary): ResourceStr {
+    if (!peer.onlineKnown) {
+      return $r('app.string.peer_unknown');
+    }
+    return peer.online ? $r('app.string.peer_online') : $r('app.string.peer_offline');
+  }
+
+  private peerStatusColor(peer: PeerSummary): ResourceColor {
+    return peer.onlineKnown && peer.online ? $r('app.color.status_success') : $r('app.color.status_idle');
+  }
+
   private connectionColor(): ResourceColor {
     if (this.hasError()) {
       return $r('app.color.status_error');
@@ -432,19 +514,60 @@ struct Index {
   }
 
   @Builder
-  private overviewRow(label: ResourceStr, value: ResourceStr) {
+  private overviewRow(label: ResourceStr, kind: number) {
     Row({ space: 16 }) {
       Text(label)
         .fontSize(14)
         .fontColor($r('app.color.text_secondary'))
       Blank()
-      Text(value)
+      Text(kind === 0 ? this.backendSummary() : kind === 1 ? this.networkSummary() : this.vpnServiceSummary())
         .fontSize(14)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('app.color.text_primary'))
         .textAlign(TextAlign.End)
         .maxLines(2)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
+    }
+    .width('100%')
+    .padding({ top: 12, bottom: 12 })
+  }
+
+  @Builder
+  private peerRow(peer: PeerSummary) {
+    Row({ space: 12 }) {
+      Text('●')
+        .fontSize(11)
+        .fontColor(this.peerStatusColor(peer))
+      Column({ space: 3 }) {
+        Text(peer.name)
+          .width('100%')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('app.color.text_primary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(peer.os.length > 0 ? `${peer.address} · ${peer.os}` : peer.address)
+          .width('100%')
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(this.peerStatusText(peer))
+          .width('100%')
+          .fontSize(11)
+          .fontColor(this.peerStatusColor(peer))
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+      Button($r('app.string.action_probe_peer_short'))
+        .width(72)
+        .height(44)
+        .fontSize(13)
+        .fontColor($r('app.color.text_primary'))
+        .backgroundColor($r('app.color.control_secondary'))
+        .borderRadius(10)
+        .enabled(this.isConnected() && peer.address.length > 0 && this.peerStatus !== 'PROBING')
+        .onClick(() => this.selectPeerAndProbe(peer))
     }
     .width('100%')
     .padding({ top: 12, bottom: 12 })
@@ -650,13 +773,64 @@ struct Index {
           }
           .width('100%')
           .padding({ bottom: 8 })
-          this.overviewRow($r('app.string.overview_backend'), this.backendSummary())
+          this.overviewRow($r('app.string.overview_backend'), 0)
           Divider()
             .color($r('app.color.border_soft'))
-          this.overviewRow($r('app.string.overview_network'), this.networkSummary())
+          this.overviewRow($r('app.string.overview_network'), 1)
           Divider()
             .color($r('app.color.border_soft'))
-          this.overviewRow($r('app.string.overview_vpn_service'), this.vpnServiceSummary())
+          this.overviewRow($r('app.string.overview_vpn_service'), 2)
+        }
+        .width('100%')
+        .padding(20)
+        .backgroundColor($r('app.color.surface_primary'))
+        .border({ width: 1, color: $r('app.color.border_standard') })
+        .borderRadius(16)
+
+        Column({ space: 12 }) {
+          Row() {
+            Text($r('app.string.devices_title'))
+              .fontSize(17)
+              .fontWeight(FontWeight.Bold)
+              .fontColor($r('app.color.text_primary'))
+            Blank()
+            if (this.peersLoaded) {
+              Text(this.peerTotal > this.peers.length ? `${this.peers.length}/${this.peerTotal}` : `${this.peerTotal}`)
+                .fontSize(12)
+                .fontColor($r('app.color.text_muted'))
+            }
+          }
+          .width('100%')
+
+          if (!this.isConnected()) {
+            Text($r('app.string.devices_connect_hint'))
+              .width('100%')
+              .fontSize(13)
+              .fontColor($r('app.color.text_secondary'))
+          } else if (this.peerListFailed) {
+            Text($r('app.string.devices_load_failed'))
+              .width('100%')
+              .fontSize(13)
+              .fontColor($r('app.color.status_error'))
+          } else if (!this.peersLoaded) {
+            Text($r('app.string.devices_loading'))
+              .width('100%')
+              .fontSize(13)
+              .fontColor($r('app.color.text_secondary'))
+          } else if (this.peers.length === 0) {
+            Text($r('app.string.devices_empty'))
+              .width('100%')
+              .fontSize(13)
+              .fontColor($r('app.color.text_secondary'))
+          } else {
+            ForEach(this.peers, (peer: PeerSummary, index: number) => {
+              if (index > 0) {
+                Divider()
+                  .color($r('app.color.border_soft'))
+              }
+              this.peerRow(peer)
+            }, (peer: PeerSummary): string => `${peer.id}|${peer.address}`)
+          }
         }
         .width('100%')
         .padding(20)

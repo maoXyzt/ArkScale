@@ -10,6 +10,8 @@ import (
 	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
+	"tailscale.com/tailcfg"
+	"tailscale.com/types/netmap"
 	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine/router"
 )
@@ -72,6 +74,31 @@ func TestPeerPath(t *testing.T) {
 	cancel()
 	if _, err := awaitPing(ctx, make(chan pingOutcome)); !errors.Is(err, context.Canceled) {
 		t.Fatalf("awaitPing() error = %v", err)
+	}
+}
+
+func TestPeerListEvent(t *testing.T) {
+	online, offline := true, false
+	networkMap := &netmap.NetworkMap{Peers: []tailcfg.NodeView{
+		(&tailcfg.Node{
+			StableID: tailcfg.StableNodeID("offline"), Name: "zulu.tailnet.ts.net.", ComputedName: "zulu",
+			Addresses: []netip.Prefix{netip.MustParsePrefix("fd7a:115c:a1e0::2/128")}, Online: &offline,
+		}).View(),
+		(&tailcfg.Node{
+			StableID: tailcfg.StableNodeID("online"), Name: "alpine.tailnet.ts.net.", ComputedName: "alpine",
+			Addresses: []netip.Prefix{netip.MustParsePrefix("fd7a:115c:a1e0::1/128"), netip.MustParsePrefix("100.64.0.2/32")},
+			Hostinfo:  (&tailcfg.Hostinfo{OS: "linux"}).View(), Online: &online,
+		}).View(),
+	}}
+	event := newPeerListEvent(networkMap)
+	if event.Total != 2 || len(event.Peers) != 2 || event.Peers[0].ID != "online" ||
+		event.Peers[0].Name != "alpine" || event.Peers[0].DNSName != "alpine.tailnet.ts.net" ||
+		event.Peers[0].Address != "100.64.0.2" || event.Peers[0].OS != "linux" ||
+		!event.Peers[0].OnlineKnown || !event.Peers[0].Online || event.Peers[1].Online {
+		t.Fatalf("peer list event = %+v", event)
+	}
+	if empty := newPeerListEvent(nil); empty.Total != 0 || len(empty.Peers) != 0 {
+		t.Fatalf("nil network map event = %+v", empty)
 	}
 }
 
