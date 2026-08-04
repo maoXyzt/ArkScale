@@ -45,6 +45,7 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
   private configWork: Promise<void> = Promise.resolve();
   private pendingConfig?: EngineEvent;
   private configApplying: boolean = false;
+  private createdAtMs: number = Date.now();
   private lastStatus: string = 'ON_CREATE';
   private lastNetworkStatus?: string;
   private lastEngineEvent?: string;
@@ -412,7 +413,7 @@ export default class ArkScaleVpnExtension extends VpnExtensionAbility {
     }
     commonEventManager.publish(VPN_PROBE_EVENT, {
       bundleName: BUNDLE_NAME,
-      data: `${status}|${bridge.getCurrentPid()}|${bridge.getVpnProbeStatus()}`
+      data: `${status}|${bridge.getCurrentPid()}|${bridge.getVpnProbeStatus()}|${Math.floor((Date.now() - this.createdAtMs) / 60000)}`
     }, (error: BusinessError) => {
       if (error?.code) {
         console.error(`VPN probe event publish failed: ${error.code}`);

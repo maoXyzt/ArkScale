@@ -73,3 +73,14 @@ func TestPeerPath(t *testing.T) {
 		t.Fatalf("awaitPing() error = %v", err)
 	}
 }
+
+func TestParseProcessStats(t *testing.T) {
+	rssKB, err := parseResidentKB("100 25 10 5 0 20 0\n", 4096)
+	if err != nil || rssKB != 100 {
+		t.Fatalf("parseResidentKB() = %d, %v", rssKB, err)
+	}
+	threads, err := parseThreads("Name:\tarkscale\nThreads:\t17\n")
+	if err != nil || threads != 17 {
+		t.Fatalf("parseThreads() = %d, %v", threads, err)
+	}
+}

@@ -22,6 +22,14 @@ interface EngineEvent {
   latencyMs?: number;
   dnsName?: string;
   error?: string;
+  process?: ProcessStats;
+}
+
+interface ProcessStats {
+  rssKb: number;
+  openFds: number;
+  threads: number;
+  goroutines: number;
 }
 
 @Entry
@@ -41,6 +49,7 @@ struct Index {
   @State private tcpStatus: string = 'NOT TESTED';
   @State private magicDnsTarget: string = '';
   @State private magicDnsStatus: string = 'NOT TESTED';
+  @State private resourceStatus: string = 'NOT MEASURED';
   private subscriber?: commonEventManager.CommonEventSubscriber;
   private stopRequested: boolean = false;
 
@@ -83,11 +92,12 @@ struct Index {
             const parts = payload.split('|');
             const status = parts[0];
             const extensionPid = Number(parts[1]);
+            const uptimeMinutes = Number(parts[3]);
             this.vpnNativeStatus = parts[2];
             if (status.startsWith('NETWORK ')) {
               this.networkStatus = status.substring(8);
             } else {
-              this.extensionStatus = `${status} pid=${extensionPid} process=${extensionPid === this.uiPid ? 'SAME' : 'SEPARATE'}`;
+              this.extensionStatus = `${status} uptimeMin=${uptimeMinutes} pid=${extensionPid} process=${extensionPid === this.uiPid ? 'SAME' : 'SEPARATE'}`;
               if (status === 'STOPPED' && this.stopRequested) {
                 this.stopRequested = false;
                 this.finishVpnStop();
@@ -180,7 +190,8 @@ struct Index {
       `Network: ${this.networkStatus}\n` +
       `Peer: ${this.peerStatus}\n` +
       `TCP: ${this.tcpStatus}\n` +
-      `MagicDNS: ${this.magicDnsStatus}`;
+      `MagicDNS: ${this.magicDnsStatus}\n` +
+      `Resources: ${this.resourceStatus}`;
   }
 
   private handleEngineEvent(eventJson: string): void {
@@ -201,6 +212,9 @@ struct Index {
         this.engineStatus = `${event.severity.toUpperCase()}: ${event.message}`;
       } else if (event.type === 'peer-probe' && event.target !== undefined && event.path !== undefined) {
         this.magicDnsTarget = (event.dnsName ?? '').replace(/\.$/, '');
+        if (event.process !== undefined) {
+          this.resourceStatus = `rss=${event.process.rssKb}KB fds=${event.process.openFds} threads=${event.process.threads} goroutines=${event.process.goroutines}`;
+        }
         this.peerStatus = event.ok ?
           `PASS ${event.nodeName ?? event.target} ${(event.latencyMs ?? 0).toFixed(1)}ms ${event.path}` :
           `FAIL ${event.nodeName ?? event.target} ${event.error ?? 'unknown error'} path=${event.path}`;

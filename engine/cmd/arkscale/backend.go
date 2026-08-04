@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -89,15 +90,23 @@ type vpnConfigEvent struct {
 }
 
 type peerProbeEvent struct {
-	SchemaVersion int     `json:"schemaVersion"`
-	Type          string  `json:"type"`
-	Target        string  `json:"target"`
-	OK            bool    `json:"ok"`
-	NodeName      string  `json:"nodeName,omitempty"`
-	DNSName       string  `json:"dnsName,omitempty"`
-	Path          string  `json:"path"`
-	LatencyMS     float64 `json:"latencyMs,omitempty"`
-	Error         string  `json:"error,omitempty"`
+	SchemaVersion int               `json:"schemaVersion"`
+	Type          string            `json:"type"`
+	Target        string            `json:"target"`
+	OK            bool              `json:"ok"`
+	NodeName      string            `json:"nodeName,omitempty"`
+	DNSName       string            `json:"dnsName,omitempty"`
+	Path          string            `json:"path"`
+	LatencyMS     float64           `json:"latencyMs,omitempty"`
+	Error         string            `json:"error,omitempty"`
+	Process       processStatsEvent `json:"process"`
+}
+
+type processStatsEvent struct {
+	RSSKB      int64 `json:"rssKb"`
+	OpenFDs    int   `json:"openFds"`
+	Threads    int   `json:"threads"`
+	Goroutines int   `json:"goroutines"`
 }
 
 type pingOutcome struct {
@@ -342,6 +351,7 @@ func (r *backendRuntime) probePeer(target string) ([]byte, error) {
 		Type:          "peer-probe",
 		Target:        addr.String(),
 		Path:          "unknown",
+		Process:       currentProcessStats(),
 	}
 	netMap := r.backend.NetMap()
 	if netMap == nil {
@@ -381,6 +391,44 @@ func (r *backendRuntime) probePeer(target string) ([]byte, error) {
 		event.Path = "unavailable"
 	}
 	return json.Marshal(event)
+}
+
+func currentProcessStats() processStatsEvent {
+	stats := processStatsEvent{RSSKB: -1, OpenFDs: -1, Threads: -1, Goroutines: runtime.NumGoroutine()}
+	if raw, err := os.ReadFile("/proc/self/statm"); err == nil {
+		if rssKB, err := parseResidentKB(string(raw), os.Getpagesize()); err == nil {
+			stats.RSSKB = rssKB
+		}
+	}
+	if entries, err := os.ReadDir("/proc/self/fd"); err == nil {
+		stats.OpenFDs = max(len(entries)-1, 0) // ReadDir's own descriptor is visible while enumerating /proc.
+	}
+	if raw, err := os.ReadFile("/proc/self/status"); err == nil {
+		if threads, err := parseThreads(string(raw)); err == nil {
+			stats.Threads = threads
+		}
+	}
+	return stats
+}
+
+func parseResidentKB(statm string, pageSize int) (int64, error) {
+	var totalPages, residentPages uint64
+	if _, err := fmt.Sscan(statm, &totalPages, &residentPages); err != nil || pageSize <= 0 {
+		return 0, errors.New("invalid proc statm")
+	}
+	return int64(residentPages * uint64(pageSize) / 1024), nil
+}
+
+func parseThreads(status string) (int, error) {
+	for _, line := range strings.Split(status, "\n") {
+		if strings.HasPrefix(line, "Threads:") {
+			var threads int
+			if _, err := fmt.Sscanf(line, "Threads:%d", &threads); err == nil && threads > 0 {
+				return threads, nil
+			}
+		}
+	}
+	return 0, errors.New("invalid proc status")
 }
 
 func (r *backendRuntime) pingWithDeadline(ctx context.Context, addr netip.Addr,
