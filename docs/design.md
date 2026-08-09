@@ -1,19 +1,19 @@
 # ArkScale 实施设计
 
-> 状态：实施前设计（尚无可构建源码）
+> 状态：当前实现的设计基线（P0–P4 已完成，P5 进行中）
 >
-> 核对日期：2026-08-02
+> 核对日期：2026-08-10
 >
 > 目标：在 HarmonyOS NEXT API 22+ 上实现一个最小、可自用的 Tailscale 全设备 VPN 客户端。
 
 ## 1. 结论与边界
 
-方案在架构上可行，但尚未被公开项目端到端证明。现有证据只分别覆盖了以下部分：
+方案已在一台目标 HarmonyOS NEXT 真机完成 P0–P4 端到端验证，但该结果不能外推为所有机型上的完整支持。当前证据覆盖以下部分：
 
-- HarmonyOS/OpenHarmony 提供三方 VPN API，可创建 TUN，并从 API 22 起用 `protectProcessNet()` 保护当前进程之后创建的 socket；Native 代码可直接读写 TUN FD。
-- OpenHarmony-SIG 的 Go 分支提供 `GOOS=openharmony`、`GOARCH=arm64`、cgo、`c-archive` 和 `c-shared` 支持。
+- HarmonyOS/OpenHarmony 提供三方 VPN API，可创建 TUN，并从 API 22 起用 `protectProcessNet()` 保护当前进程之后创建的 socket；ArkScale 已在目标真机验证 Native 读写 TUN FD、进程保护和配置重建。
+- OpenHarmony-SIG 的 Go 分支提供 `GOOS=openharmony`、`GOARCH=arm64`、cgo、`c-archive` 和 `c-shared` 支持；固定版本已通过加载、启停和短时稳定性门禁。
 - ClashBox 的源码与 HAP Release 提供了商业 HarmonyOS NEXT 上“Go 共享库 + VPN Ability + TUN + 逐 socket protect”的相邻真机证据，但其网络核心不是 Tailscale。
-- Tailscale Android 客户端证明了移动端可用 `wgengine`、可替换 TUN、路由/DNS 回调和逐 socket 保护来实现系统 VPN。
+- Tailscale Android 客户端提供了移动端 `wgengine`、可替换 TUN 和路由/DNS 回调的移植蓝本；ArkScale 的 LocalBackend 路线已在目标真机通过 DERP/直连、MagicDNS 和 peer IPv4/IPv6 门禁。
 
 这些证据不能替代 ArkScale 在目标 HarmonyOS NEXT 手机上的 PoC。项目按门禁推进：前一阶段未通过，不进入后一阶段。
 
@@ -84,7 +84,7 @@ Extension、Node-API addon 和 Go 动态库必须在同一进程内运行。P2 �
 
 ## 4. 仓库落地结构
 
-实现时使用以下最小结构：
+仓库采用以下结构：
 
 ```text
 ArkScale/
@@ -362,7 +362,7 @@ env GOTOOLCHAIN=local \
   ./cmd/arkscale
 ```
 
-该命令是待 P0 验证的目标命令，不代表当前仓库已经构建成功。构建后检查：
+该路径已由仓库的 P0 自动化验证。手动构建后仍需检查：
 
 ```bash
 llvm-readelf -h build/arm64-v8a/libarkscale_engine.so
