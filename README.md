@@ -32,7 +32,9 @@ ArkScale 是面向 HarmonyOS NEXT 的实验性 Tailscale 全设备 VPN 客户端
 
 ## 获取与安装
 
-[GitHub Releases](https://github.com/maoXyzt/ArkScale/releases) 当前用于标记源码版本，不包含可直接安装的 HAP。自行安装需要：
+[GitHub Releases](https://github.com/maoXyzt/ArkScale/releases) 提供预构建 HAP。侧载安装需要先使用用户自己的签名材料签名；完整步骤见[侧载安装指南](docs/sideloading.md)。用户无需完整编译工具链。
+
+从源码自行安装需要：
 
 1. 获取源码；
 2. 使用 DevEco Studio 6.1.1 配置本机调试或发布签名；

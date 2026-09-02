@@ -6,6 +6,8 @@
     "build:hap": "./scripts/build-hap.sh",
     "build:p0": "./scripts/build-p0-docker.sh",
     "build:p1": "./scripts/build-p1.sh",
+    "package:release": "./scripts/package-release.sh",
+    "install:hap": "./scripts/install-hap.sh",
     "check:secrets": "./scripts/check-staged-secrets.sh",
     "verify:hap": "./scripts/verify-hap.sh"
   }
