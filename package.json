@@ -8,6 +8,7 @@
     "build:p1": "./scripts/build-p1.sh",
     "package:release": "./scripts/package-release.sh",
     "install:hap": "./scripts/install-hap.sh",
+    "validate:hap": "./scripts/validate-hap.sh",
     "check:secrets": "./scripts/check-staged-secrets.sh",
     "verify:hap": "./scripts/verify-hap.sh"
   }

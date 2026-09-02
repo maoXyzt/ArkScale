@@ -2,7 +2,7 @@
 
 ArkScale 是面向 HarmonyOS NEXT 的实验性 Tailscale 全设备 VPN 客户端。
 
-它让 HarmonyOS NEXT 手机加入现有 tailnet，并通过 Tailscale 访问其他设备。项目仅供学习、研究和自部署，目前不提供应用市场版本或官方预编译 HAP；使用者需要自行构建、签名并安装。
+它让 HarmonyOS NEXT 手机加入现有 tailnet，并通过 Tailscale 访问其他设备。项目仅供学习、研究和自部署，不通过 AppGallery 分发；GitHub Releases 提供维护者构建的预编译 HAP，使用者仍需自行签名并安装。
 
 > 当前状态：最小客户端已在一台 HarmonyOS NEXT 真机通过端到端验证，但 24 小时长稳、低内存恢复和更多机型兼容性仍待验证，不应视为完整或生产级支持。
 

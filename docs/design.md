@@ -104,6 +104,7 @@ ArkScale/
 │   ├── go.mod
 │   ├── cmd/arkscale/main.go
 │   └── internal/...
+├── patches/ohos-go/
 ├── patches/tailscale/
 ├── scripts/ohos-clang
 ├── scripts/ohos-clang++
