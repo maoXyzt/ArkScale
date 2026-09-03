@@ -23,7 +23,15 @@ if [ "$ARKSCALE_HAP" != "$ARKSCALE_DEFAULT_HAP" ]; then
   exit 1
 fi
 
-ARKSCALE_VERSION=$(sed -n 's/.*"versionName": "\([^"]*\)".*/\1/p' "$ARKSCALE_ROOT/AppScope/app.json5" | head -1)
+ARKSCALE_VERSION=$(sed -n "s/.*[\"']*versionName[\"']*[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$ARKSCALE_ROOT/AppScope/app.json5" | head -1)
+ARKSCALE_CODE=$(sed -n "s/.*[\"']*versionCode[\"']*[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p" "$ARKSCALE_ROOT/AppScope/app.json5" | head -1)
+ARKSCALE_PACK=$(unzip -p "$ARKSCALE_HAP" pack.info)
+ARKSCALE_PACK_VERSION=$(printf '%s' "$ARKSCALE_PACK" | node -e 'process.stdin.setEncoding("utf8"); let s=""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { const p=JSON.parse(s); process.stdout.write(String(p.summary.app.version.name)); });')
+ARKSCALE_PACK_CODE=$(printf '%s' "$ARKSCALE_PACK" | node -e 'process.stdin.setEncoding("utf8"); let s=""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { const p=JSON.parse(s); process.stdout.write(String(p.summary.app.version.code)); });')
+if [ "${ARKSCALE_VERSION:-}" != "$ARKSCALE_PACK_VERSION" ] || [ "${ARKSCALE_CODE:-}" != "$ARKSCALE_PACK_CODE" ]; then
+  echo "error: HAP version metadata does not match AppScope/app.json5; rebuild the HAP" >&2
+  exit 1
+fi
 ARKSCALE_PARENT=$(dirname -- "$ARKSCALE_OUT")
 mkdir -p "$ARKSCALE_PARENT"
 ARKSCALE_STAGE=$(mktemp -d "$ARKSCALE_PARENT/.arkscale-release.XXXXXX")
@@ -38,7 +46,6 @@ else
 fi
 
 ARKSCALE_COMMIT=$(git -C "$ARKSCALE_ROOT" rev-parse HEAD)
-ARKSCALE_CODE=$(sed -n 's/.*"versionCode": \([0-9][0-9]*\).*/\1/p' "$ARKSCALE_ROOT/AppScope/app.json5" | head -1)
 cat > "$ARKSCALE_STAGE/manifest.txt" <<EOF
 ArkScale version: ${ARKSCALE_VERSION:-unknown} (${ARKSCALE_CODE:-unknown})
 Commit: $ARKSCALE_COMMIT

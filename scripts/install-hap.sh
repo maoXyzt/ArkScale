@@ -13,9 +13,9 @@ if ! command -v hdc >/dev/null 2>&1; then
   echo "error: hdc is required; install the HarmonyOS device command-line tools" >&2
   exit 1
 fi
-ARKSCALE_TARGETS=$(hdc list targets)
-if [ -z "$ARKSCALE_TARGETS" ] || printf '%s\n' "$ARKSCALE_TARGETS" | grep -Eq '^\[Empty\]$|No devices|Connect server failed'; then
-  echo "error: no HDC device detected; enable developer mode and USB debugging" >&2
+if ! ARKSCALE_TARGETS=$(hdc list targets 2>&1) || [ -z "$ARKSCALE_TARGETS" ] || printf '%s\n' "$ARKSCALE_TARGETS" | grep -Eq '^\[Empty\]$|No devices|Connect server failed'; then
+  echo "error: no HDC device detected or HDC connection failed; enable developer mode and USB debugging" >&2
+  [ -z "$ARKSCALE_TARGETS" ] || printf 'HDC output: %s\n' "$ARKSCALE_TARGETS" >&2
   exit 1
 fi
 if [ -n "$ARKSCALE_TARGET" ]; then

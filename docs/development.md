@@ -60,6 +60,12 @@ pnpm run build:hap
 pnpm run verify:hap
 ```
 
+如需单独校验指定 HAP，必须传入文件路径：
+
+```bash
+pnpm run validate:hap -- /path/to/arkscale.hap
+```
+
 未签名产物位于：
 
 ```text
