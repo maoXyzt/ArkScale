@@ -22,25 +22,13 @@ file "$ARKSCALE_ENGINE" | grep -E 'ELF 64-bit.*ARM aarch64' >/dev/null
 
 verify_hap() {
   ARKSCALE_HAP=$1
+  "$ARKSCALE_ROOT/scripts/validate-hap.sh" "$ARKSCALE_HAP"
   for ARKSCALE_LIB in libarkscale_bridge.so libarkscale_smoke.so libarkscale_engine.so; do
     if ! unzip -p "$ARKSCALE_HAP" "libs/arm64-v8a/$ARKSCALE_LIB" | cmp - "$ARKSCALE_LIB_DIR/$ARKSCALE_LIB"; then
       echo "error: $ARKSCALE_HAP contains stale $ARKSCALE_LIB" >&2
       exit 1
     fi
   done
-  ARKSCALE_MODULE=$(unzip -p "$ARKSCALE_HAP" module.json)
-  printf '%s\n' "$ARKSCALE_MODULE" | grep '"bundleName":"com.arkscale.client"' >/dev/null
-  printf '%s\n' "$ARKSCALE_MODULE" | grep '"name":"ohos.permission.INTERNET"' >/dev/null
-  printf '%s\n' "$ARKSCALE_MODULE" | grep '"name":"ohos.permission.GET_NETWORK_INFO"' >/dev/null
-  if printf '%s\n' "$ARKSCALE_MODULE" | grep '"name":"ohos.permission.MANAGE_VPN"' >/dev/null; then
-    echo "error: HAP requests system-only MANAGE_VPN permission" >&2
-    exit 1
-  fi
-  printf '%s\n' "$ARKSCALE_MODULE" | grep '"name":"ArkScaleVpnExtension"' >/dev/null
-  printf '%s\n' "$ARKSCALE_MODULE" | grep '"type":"vpn"' >/dev/null
-  unzip -p "$ARKSCALE_HAP" pack.info | grep '"compatible":22' >/dev/null
-  unzip -p "$ARKSCALE_HAP" pack.info | grep '"target":24' >/dev/null
-  echo "HAP verification passed: $ARKSCALE_HAP"
 }
 
 verify_hap "$ARKSCALE_UNSIGNED_HAP"
